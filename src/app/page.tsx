@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Search, Wheat, Shirt, Package, Leaf, type LucideIcon } from "lucide-react";
-import { SUPPLIERS, PRODUCTS } from "@/data/mock-data";
+import { connection } from "next/server";
+import { getProducts, searchSuppliers } from "@/server/supplier-service";
+import type { Product, Supplier } from "@/types";
 import { formatRupiah } from "@/lib/utils";
 import SupplierCard from "@/components/supplier/SupplierCard";
 
@@ -19,43 +21,47 @@ const STEPS = [
   { title: "Hubungi langsung", desc: "Tidak ada perantara. Kirim pesan ke supplier pilihan lewat WhatsApp atau email." },
 ];
 
-// Lowest/highest price and number of suppliers offering each product
-const PRICE_BOARD = PRODUCTS.map((product) => {
-  const prices = SUPPLIERS.flatMap((s) =>
-    s.products.filter((sp) => sp.productId === product.id).map((sp) => sp.pricePerUnit)
-  );
-  return {
-    product,
-    supplierCount: prices.length,
-    lowest: prices.length ? Math.min(...prices) : 0,
-    highest: prices.length ? Math.max(...prices) : 0,
-  };
-})
-  .filter((row) => row.supplierCount > 0)
-  .sort((a, b) => b.supplierCount - a.supplierCount)
-  .slice(0, 6);
+function buildHomeData(suppliers: Supplier[], products: Product[]) {
+  // Lowest/highest price and number of suppliers offering each product
+  const priceBoard = products.map((product) => {
+    const prices = suppliers.flatMap((s) =>
+      s.products.filter((sp) => sp.productId === product.id).map((sp) => sp.pricePerUnit)
+    );
+    return {
+      product,
+      supplierCount: prices.length,
+      lowest: prices.length ? Math.min(...prices) : 0,
+      highest: prices.length ? Math.max(...prices) : 0,
+    };
+  })
+    .filter((row) => row.supplierCount > 0)
+    .sort((a, b) => b.supplierCount - a.supplierCount)
+    .slice(0, 6);
 
-const CATEGORY_SUMMARY = Object.keys(CATEGORY_ICONS).map((name) => {
-  const products = PRODUCTS.filter((p) => p.category === name);
-  return {
-    name,
-    icon: CATEGORY_ICONS[name],
-    productCount: products.length,
-    supplierCount: SUPPLIERS.filter((s) => s.categories.includes(name)).length,
-    examples: products.slice(0, 3).map((p) => p.name),
-  };
-});
+  const categorySummary = Object.keys(CATEGORY_ICONS).map((name) => {
+    const inCategory = products.filter((p) => p.category === name);
+    return {
+      name,
+      icon: CATEGORY_ICONS[name],
+      productCount: inCategory.length,
+      supplierCount: suppliers.filter((s) => s.categories.includes(name)).length,
+      examples: inCategory.slice(0, 3).map((p) => p.name),
+    };
+  });
 
-const STATS = [
-  { value: SUPPLIERS.length, label: "Supplier terdaftar", note: `${SUPPLIERS.filter((s) => s.verified).length} terverifikasi` },
-  { value: PRODUCTS.length, label: "Jenis bahan baku", note: `${CATEGORY_SUMMARY.length} kategori utama` },
-  { value: new Set(SUPPLIERS.map((s) => s.city)).size, label: "Kota asal supplier", note: `${new Set(SUPPLIERS.map((s) => s.province)).size} provinsi` },
-  {
-    value: (SUPPLIERS.reduce((sum, s) => sum + s.rating, 0) / SUPPLIERS.length).toFixed(1),
-    label: "Rata-rata rating",
-    note: `dari ${SUPPLIERS.reduce((sum, s) => sum + s.reviewCount, 0).toLocaleString("id-ID")} ulasan`,
-  },
-];
+  const stats = [
+    { value: suppliers.length, label: "Supplier terdaftar", note: `${suppliers.filter((s) => s.verified).length} terverifikasi` },
+    { value: products.length, label: "Jenis bahan baku", note: `${categorySummary.length} kategori utama` },
+    { value: new Set(suppliers.map((s) => s.city)).size, label: "Kota asal supplier", note: `${new Set(suppliers.map((s) => s.province)).size} provinsi` },
+    {
+      value: (suppliers.reduce((sum, s) => sum + s.rating, 0) / suppliers.length).toFixed(1),
+      label: "Rata-rata rating",
+      note: `dari ${suppliers.reduce((sum, s) => sum + s.reviewCount, 0).toLocaleString("id-ID")} ulasan`,
+    },
+  ];
+
+  return { priceBoard, categorySummary, stats };
+}
 
 function SectionHeader({ eyebrow, title, description, href, linkLabel }: {
   eyebrow: string;
@@ -84,8 +90,11 @@ function SectionHeader({ eyebrow, title, description, href, linkLabel }: {
   );
 }
 
-export default function HomePage() {
-  const featuredSuppliers = SUPPLIERS.filter((s) => s.verified)
+export default async function HomePage() {
+  await connection();
+  const [suppliers, products] = await Promise.all([searchSuppliers(), getProducts()]);
+  const { priceBoard, categorySummary, stats } = buildHomeData(suppliers, products);
+  const featuredSuppliers = suppliers.filter((s) => s.verified)
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 3);
 
@@ -147,10 +156,10 @@ export default function HomePage() {
                     <h2 className="text-sm font-semibold text-ink">Harga terendah per unit</h2>
                     <p className="mt-0.5 text-xs text-ink-subtle">Bahan baku dengan pilihan supplier terbanyak</p>
                   </div>
-                  <span className="text-xs font-medium tabular-nums text-ink-subtle">{PRICE_BOARD.length} produk</span>
+                  <span className="text-xs font-medium tabular-nums text-ink-subtle">{priceBoard.length} produk</span>
                 </div>
                 <ul className="divide-y divide-line">
-                  {PRICE_BOARD.map(({ product, supplierCount, lowest, highest }) => (
+                  {priceBoard.map(({ product, supplierCount, lowest, highest }) => (
                     <li key={product.id}>
                       <Link
                         href={`/suppliers?query=${encodeURIComponent(product.name)}`}
@@ -188,7 +197,7 @@ export default function HomePage() {
 
           {/* Proof */}
           <dl className="mt-14 grid grid-cols-2 gap-x-6 gap-y-8 border-t border-line pt-8 lg:grid-cols-4">
-            {STATS.map(({ value, label, note }) => (
+            {stats.map(({ value, label, note }) => (
               <div key={label} className="lg:border-l lg:border-line lg:pl-6 lg:first:border-l-0 lg:first:pl-0">
                 <dt className="text-sm font-medium text-ink-muted">{label}</dt>
                 <dd className="mt-1 text-3xl font-bold tracking-tight tabular-nums text-ink">{value}</dd>
@@ -208,7 +217,7 @@ export default function HomePage() {
           linkLabel="Semua kategori"
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {CATEGORY_SUMMARY.map(({ name, icon: Icon, productCount, supplierCount, examples }) => (
+          {categorySummary.map(({ name, icon: Icon, productCount, supplierCount, examples }) => (
             <Link
               key={name}
               href={`/suppliers?category=${encodeURIComponent(name)}`}

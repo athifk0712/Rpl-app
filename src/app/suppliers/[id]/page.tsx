@@ -4,16 +4,14 @@ import {
   MapPin, Star, ShieldCheck, Phone, Mail, MessageCircle,
   Clock, Package, Truck, ChevronLeft, GitCompare, AlertTriangle, CheckCircle2
 } from "lucide-react";
-import { SUPPLIERS, getSupplierById, getProductById } from "@/data/mock-data";
+import { connection } from "next/server";
+import { getSupplierById } from "@/server/supplier-service";
 import { formatRupiah, getStockBadgeClass, getStockLabel } from "@/lib/utils";
 
-export function generateStaticParams() {
-  return SUPPLIERS.map((s) => ({ id: s.id }));
-}
-
 export default async function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await connection();
   const { id } = await params;
-  const supplier = getSupplierById(id);
+  const supplier = await getSupplierById(id);
   if (!supplier) notFound();
 
   return (
@@ -89,8 +87,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             <h2 className="text-lg font-bold text-gray-900 mb-4">Daftar Produk ({supplier.products.length})</h2>
             <div className="space-y-3">
               {supplier.products.map((sp) => {
-                const product = getProductById(sp.productId);
-                if (!product) return null;
+                const { product } = sp;
                 const finalPrice = sp.discount ? sp.pricePerUnit * (1 - sp.discount / 100) : sp.pricePerUnit;
                 return (
                   <div key={sp.productId} className="flex items-center gap-4 p-3 border border-gray-100 rounded-xl hover:border-blue-200 transition-colors">

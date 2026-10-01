@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { LayoutGrid, List, ChevronDown, GitCompare, SearchX } from "lucide-react";
+import { LayoutGrid, List, ChevronDown, GitCompare, SearchX, AlertTriangle } from "lucide-react";
 import SearchBar from "@/components/search/SearchBar";
 import SupplierCard from "@/components/supplier/SupplierCard";
 import ComparisonBar from "@/components/supplier/ComparisonBar";
-import { SUPPLIERS, searchSuppliers } from "@/data/mock-data";
-import { SortOption } from "@/types";
+import { fetchSuppliers } from "@/lib/api";
+import type { SortOption, Supplier } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface Filters {
@@ -26,7 +26,11 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "price_desc", label: "Min. order tertinggi" },
 ];
 
-const CITY_COUNT = new Set(SUPPLIERS.map((s) => s.city)).size;
+interface SearchResult {
+  key: string;
+  suppliers: Supplier[];
+  error: string | null;
+}
 
 function SuppliersContent({
   initialFilters,
@@ -35,21 +39,32 @@ function SuppliersContent({
 }: {
   initialFilters: Filters;
   compareList: string[];
-  onToggleCompare: (id: string) => void;
+  onToggleCompare: (supplier: Supplier) => void;
 }) {
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [resetKey, setResetKey] = useState(0);
   const [sortBy, setSortBy] = useState<SortOption>("rating");
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [retry, setRetry] = useState(0);
+  const [result, setResult] = useState<SearchResult | null>(null);
 
-  const results = searchSuppliers(filters.query, filters.category, filters.province, filters.maxPrice);
-  const sorted = [...results].sort((a, b) => {
-    if (sortBy === "price_asc") return a.minOrderValue - b.minOrderValue;
-    if (sortBy === "price_desc") return b.minOrderValue - a.minOrderValue;
-    if (sortBy === "rating") return b.rating - a.rating;
-    if (sortBy === "review") return b.reviewCount - a.reviewCount;
-    return 0;
-  });
+  // Filter dan urutan diproses di server; hasil disimpan bersama key request-nya
+  // sehingga status loading cukup diturunkan dari perbedaan key.
+  const requestKey = JSON.stringify({ ...filters, sortBy, retry });
+  useEffect(() => {
+    const controller = new AbortController();
+    const key = JSON.stringify({ ...filters, sortBy, retry });
+    fetchSuppliers({ ...filters, sort: sortBy }, controller.signal)
+      .then((data) => setResult({ key, suppliers: data.suppliers, error: null }))
+      .catch((e: Error) => {
+        if (!controller.signal.aborted) setResult({ key, suppliers: [], error: e.message });
+      });
+    return () => controller.abort();
+  }, [filters, sortBy, retry]);
+
+  const loading = result?.key !== requestKey;
+  const error = loading ? null : result.error;
+  const sorted = loading ? [] : result.suppliers;
 
   const resetSearch = () => {
     setFilters(EMPTY_FILTERS);
@@ -66,7 +81,7 @@ function SuppliersContent({
             Cari supplier bahan baku
           </h1>
           <p className="mt-2 text-base text-ink-muted">
-            {SUPPLIERS.length} supplier dari {CITY_COUNT} kota. Cari berdasarkan nama bahan, supplier, atau kategori.
+            Cari berdasarkan nama bahan, supplier, atau kategori, lalu bandingkan hingga 3 supplier.
           </p>
           <div className="mt-6 max-w-4xl">
             <SearchBar
@@ -83,7 +98,7 @@ function SuppliersContent({
         {/* Toolbar */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-ink-muted" aria-live="polite">
-            <span className="font-semibold tabular-nums text-ink">{sorted.length}</span> supplier
+            {loading ? "Memuat supplier…" : <><span className="font-semibold tabular-nums text-ink">{sorted.length}</span> supplier</>}
             {filters.query && <> untuk <span className="font-semibold text-ink">“{filters.query}”</span></>}
             {filters.category && <> di <span className="font-semibold text-ink">{filters.category}</span></>}
             {filters.province && <> · {filters.province}</>}
@@ -141,7 +156,28 @@ function SuppliersContent({
         )}
 
         {/* Results */}
-        {sorted.length === 0 ? (
+        {loading ? (
+          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-80 animate-pulse rounded-xl bg-surface-muted" />
+            ))}
+          </div>
+        ) : error ? (
+          <div role="alert" className="mt-6 flex flex-col items-center rounded-2xl border border-line-strong bg-surface px-6 py-16 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-muted text-danger">
+              <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <h2 className="mt-4 text-lg font-bold tracking-tight text-ink">Gagal memuat supplier</h2>
+            <p className="mt-1 max-w-sm text-sm text-ink-muted">{error}</p>
+            <button
+              type="button"
+              onClick={() => setRetry((n) => n + 1)}
+              className="mt-6 h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover"
+            >
+              Coba lagi
+            </button>
+          </div>
+        ) : sorted.length === 0 ? (
           <div className="mt-6 flex flex-col items-center rounded-2xl border border-dashed border-line-strong bg-surface px-6 py-16 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-muted text-ink-subtle">
               <SearchX className="h-6 w-6" aria-hidden="true" />
@@ -164,7 +200,7 @@ function SuppliersContent({
               <SupplierCard
                 key={supplier.id}
                 supplier={supplier}
-                onAddCompare={onToggleCompare}
+                onAddCompare={() => onToggleCompare(supplier)}
                 compareList={compareList}
                 layout={view}
               />
@@ -180,11 +216,14 @@ function SuppliersRoute() {
   const searchParams = useSearchParams();
   const query = searchParams.get("query") || "";
   const category = searchParams.get("category") || "";
-  const [compareList, setCompareList] = useState<string[]>([]);
+  const [compared, setCompared] = useState<Supplier[]>([]);
+  const compareList = compared.map((s) => s.id);
 
-  const toggleCompare = (id: string) => {
-    setCompareList((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 3 ? [...prev, id] : prev
+  const toggleCompare = (supplier: Supplier) => {
+    setCompared((prev) =>
+      prev.some((s) => s.id === supplier.id)
+        ? prev.filter((s) => s.id !== supplier.id)
+        : prev.length < 3 ? [...prev, supplier] : prev
     );
   };
 
@@ -198,9 +237,9 @@ function SuppliersRoute() {
         onToggleCompare={toggleCompare}
       />
       <ComparisonBar
-        compareList={compareList}
-        onRemove={(id) => setCompareList((prev) => prev.filter((x) => x !== id))}
-        onClear={() => setCompareList([])}
+        suppliers={compared}
+        onRemove={(id) => setCompared((prev) => prev.filter((s) => s.id !== id))}
+        onClear={() => setCompared([])}
       />
     </>
   );

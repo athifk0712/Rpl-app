@@ -2,7 +2,7 @@
 
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useState } from "react";
-import { CATEGORIES, PROVINCES } from "@/data/mock-data";
+import { CATEGORIES, PROVINCES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 interface Props {

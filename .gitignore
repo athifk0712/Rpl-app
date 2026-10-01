@@ -35,3 +35,11 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# database lokal & Prisma client hasil generate
+/prisma/*.db
+/prisma/*.db-journal
+/src/generated/
+
+!.env.example
+*.tsbuildinfo

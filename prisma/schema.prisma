@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Category {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  products  Product[]
+  suppliers Supplier[]
+}
+
+model Product {
+  id          String            @id
+  name        String
+  unit        String
+  description String
+  categoryId  Int
+  category    Category          @relation(fields: [categoryId], references: [id])
+  offers      SupplierProduct[]
+}
+
+model Supplier {
+  id              String            @id
+  name            String
+  logo            String
+  description     String
+  location        String
+  city            String
+  province        String
+  phone           String
+  whatsapp        String
+  email           String
+  rating          Float
+  reviewCount     Int
+  joinedYear      Int
+  verified        Boolean           @default(false)
+  responseTime    String
+  minOrderValue   Int
+  categories      Category[]
+  products        SupplierProduct[]
+  shippingOptions ShippingOption[]
+  shippingRates   ShippingRate[]
+}
+
+model SupplierProduct {
+  supplierId   String
+  productId    String
+  pricePerUnit Int
+  minOrderQty  Int
+  stock        String
+  discount     Int?
+  supplier     Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [productId], references: [id])
+
+  @@id([supplierId, productId])
+}
+
+model ShippingOption {
+  id         Int      @id @default(autoincrement())
+  supplierId String
+  name       String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+}
+
+model ShippingRate {
+  id         Int      @id @default(autoincrement())
+  supplierId String
+  zone       String
+  cost       Int
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+}

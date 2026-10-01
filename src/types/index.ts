@@ -6,12 +6,15 @@ export interface Product {
   description: string;
 }
 
+export type Stock = "tersedia" | "terbatas" | "habis";
+
 export interface SupplierProduct {
   productId: string;
   pricePerUnit: number;
   minOrderQty: number;
-  stock: "tersedia" | "terbatas" | "habis";
+  stock: Stock;
   discount?: number;
+  product: Product;
 }
 
 export interface Supplier {
@@ -43,3 +46,20 @@ export interface CompareItem {
 }
 
 export type SortOption = "price_asc" | "price_desc" | "rating" | "review";
+
+export interface SupplierSearchParams {
+  query?: string;
+  category?: string;
+  province?: string;
+  maxPrice?: number;
+  sort?: SortOption;
+}
+
+export interface SupplierListResponse {
+  total: number;
+  suppliers: Supplier[];
+}
+
+export interface ApiError {
+  error: string;
+}

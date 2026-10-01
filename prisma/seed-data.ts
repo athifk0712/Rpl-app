@@ -1,26 +1,37 @@
-import { Product, Supplier, SupplierProduct } from "@/types";
+import type { Product, Stock } from "../src/types";
 
-export const CATEGORIES = [
-  "Bahan Pangan",
-  "Tekstil & Kain",
-  "Kemasan",
-  "Bumbu & Rempah",
-  "Bahan Kimia",
-  "Bahan Bangunan",
-  "Peralatan",
-  "Agribisnis",
-];
+export { CATEGORIES, PROVINCES } from "../src/lib/constants";
 
-export const PROVINCES = [
-  "DKI Jakarta",
-  "Jawa Barat",
-  "Jawa Tengah",
-  "Jawa Timur",
-  "Banten",
-  "DI Yogyakarta",
-  "Sumatera Utara",
-  "Sulawesi Selatan",
-];
+export interface SeedOffer {
+  productId: string;
+  pricePerUnit: number;
+  minOrderQty: number;
+  stock: Stock;
+  discount?: number;
+}
+
+export interface SeedSupplier {
+  id: string;
+  name: string;
+  logo: string;
+  description: string;
+  location: string;
+  city: string;
+  province: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  rating: number;
+  reviewCount: number;
+  joinedYear: number;
+  verified: boolean;
+  categories: string[];
+  shippingOptions: string[];
+  shippingCost: Record<string, number>;
+  products: SeedOffer[];
+  responseTime: string;
+  minOrderValue: number;
+}
 
 export const PRODUCTS: Product[] = [
   { id: "p01", name: "Tepung Terigu Protein Tinggi", category: "Bahan Pangan", unit: "kg", description: "Tepung terigu protein tinggi ideal untuk roti dan kue" },
@@ -47,7 +58,7 @@ export const PRODUCTS: Product[] = [
   { id: "p22", name: "Plastik Wrap Cling Film", category: "Kemasan", unit: "roll", description: "Plastik wrap transparan untuk pengemasan makanan segar" },
 ];
 
-export const SUPPLIERS: Supplier[] = [
+export const SUPPLIERS: SeedSupplier[] = [
   {
     id: "s01",
     name: "UD Sumber Makmur",
@@ -326,35 +337,3 @@ export const SUPPLIERS: Supplier[] = [
     ],
   },
 ];
-
-export function getSupplierById(id: string): Supplier | undefined {
-  return SUPPLIERS.find((s) => s.id === id);
-}
-
-export function getProductById(id: string): Product | undefined {
-  return PRODUCTS.find((p) => p.id === id);
-}
-
-export function getSupplierProduct(supplier: Supplier, productId: string): SupplierProduct | undefined {
-  return supplier.products.find((p) => p.productId === productId);
-}
-
-export function searchSuppliers(query: string, category: string, province: string, maxPrice: number): Supplier[] {
-  return SUPPLIERS.filter((supplier) => {
-    const matchesCategory = !category || supplier.categories.includes(category);
-    const matchesProvince = !province || supplier.province === province;
-
-    const supplierProducts = supplier.products.map((sp) => {
-      const product = getProductById(sp.productId);
-      return { ...sp, product };
-    });
-
-    const matchesQuery = !query || supplier.name.toLowerCase().includes(query.toLowerCase()) ||
-      supplierProducts.some((sp) => sp.product?.name.toLowerCase().includes(query.toLowerCase())) ||
-      supplierProducts.some((sp) => sp.product?.category.toLowerCase().includes(query.toLowerCase()));
-
-    const matchesPrice = !maxPrice || supplierProducts.some((sp) => sp.pricePerUnit <= maxPrice);
-
-    return matchesCategory && matchesProvince && matchesQuery && matchesPrice;
-  });
-}

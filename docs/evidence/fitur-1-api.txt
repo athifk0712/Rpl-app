@@ -1,0 +1,72 @@
+# Bukti verifikasi Fitur 1 — dijalankan 2026-10-01 14:44 terhadap npm run dev (http://localhost:3000)
+
+$ curl "/api/suppliers?query=tepung"
+{
+  "total": 3,
+  "suppliers": [
+    "s01 UD Sumber Makmur (Jawa Barat, rating 4.8, min order 500000)",
+    "s10 PT Surya Bahan Industri (Banten, rating 4.6, min order 2000000)",
+    "s05 CV Jaya Tepung Mandiri (Jawa Tengah, rating 4.5, min order 400000)"
+  ]
+}
+[HTTP 200]
+
+$ curl "/api/suppliers?category=Kemasan&province=Jawa%20Timur"
+{
+  "total": 0,
+  "suppliers": []
+}
+[HTTP 200]
+
+$ curl "/api/suppliers?maxPrice=10000&sort=price_asc"
+{
+  "total": 4,
+  "suppliers": [
+    "s08 CV Kemasan Digital Print (Banten, rating 4.3, min order 150000)",
+    "s03 Toko Kemasan Prima (Banten, rating 4.7, min order 200000)",
+    "s05 CV Jaya Tepung Mandiri (Jawa Tengah, rating 4.5, min order 400000)",
+    "s01 UD Sumber Makmur (Jawa Barat, rating 4.8, min order 500000)"
+  ]
+}
+[HTTP 200]
+
+$ curl "/api/suppliers/s01"
+{
+  "id": "s01",
+  "name": "UD Sumber Makmur",
+  "city": "Bekasi",
+  "products": [
+    "Tepung Terigu Protein Tinggi @ Rp12500",
+    "Tepung Tapioka @ Rp9800",
+    "Gula Pasir Putih @ Rp14500",
+    "Minyak Goreng Curah @ Rp16000",
+    "Susu Bubuk Full Cream @ Rp85000",
+    "Coklat Compound Blok @ Rp42000"
+  ]
+}
+[HTTP 200]
+
+$ curl "/api/suppliers/x99"
+{
+  "error": "Supplier dengan id \"x99\" tidak ditemukan."
+}
+[HTTP 404]
+
+$ curl "/api/suppliers?sort=termurah"
+{
+  "error": "Parameter sort tidak valid. Gunakan salah satu: rating, review, price_asc, price_desc."
+}
+[HTTP 400]
+
+$ curl "/api/suppliers?maxPrice=abc"
+{
+  "error": "Parameter maxPrice harus berupa angka 0 atau lebih."
+}
+[HTTP 400]
+
+## Halaman UI
+GET / -> HTTP 200
+GET /suppliers -> HTTP 200
+GET /suppliers/s01 -> HTTP 200
+GET /suppliers/x99 -> HTTP 404
+GET /compare?ids=s01,s02 -> HTTP 200

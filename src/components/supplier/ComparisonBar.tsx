@@ -2,19 +2,16 @@
 
 import Link from "next/link";
 import { GitCompare, X } from "lucide-react";
-import { Supplier } from "@/types";
-import { getSupplierById } from "@/data/mock-data";
+import type { Supplier } from "@/types";
 
 interface Props {
-  compareList: string[];
+  suppliers: Supplier[];
   onRemove: (id: string) => void;
   onClear: () => void;
 }
 
-export default function ComparisonBar({ compareList, onRemove, onClear }: Props) {
-  if (compareList.length === 0) return null;
-
-  const suppliers = compareList.map((id) => getSupplierById(id)).filter(Boolean) as Supplier[];
+export default function ComparisonBar({ suppliers, onRemove, onClear }: Props) {
+  if (suppliers.length === 0) return null;
 
   return (
     <div
@@ -26,7 +23,7 @@ export default function ComparisonBar({ compareList, onRemove, onClear }: Props)
         <p className="flex items-center gap-2 text-sm font-semibold text-ink">
           <GitCompare className="h-4 w-4 text-accent" aria-hidden="true" />
           <span>
-            Bandingkan <span className="tabular-nums text-ink-subtle">({compareList.length}/3)</span>
+            Bandingkan <span className="tabular-nums text-ink-subtle">({suppliers.length}/3)</span>
           </span>
         </p>
 
@@ -48,7 +45,7 @@ export default function ComparisonBar({ compareList, onRemove, onClear }: Props)
             </li>
           ))}
 
-          {Array.from({ length: 3 - compareList.length }).map((_, i) => (
+          {Array.from({ length: 3 - suppliers.length }).map((_, i) => (
             <li
               key={i}
               className="hidden items-center rounded-lg border border-dashed border-line-strong px-3 py-1.5 text-xs text-ink-subtle sm:flex"
@@ -66,9 +63,9 @@ export default function ComparisonBar({ compareList, onRemove, onClear }: Props)
           >
             Hapus semua
           </button>
-          {compareList.length >= 2 ? (
+          {suppliers.length >= 2 ? (
             <Link
-              href={`/compare?ids=${compareList.join(",")}`}
+              href={`/compare?ids=${suppliers.map((s) => s.id).join(",")}`}
               className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover"
             >
               Bandingkan sekarang
