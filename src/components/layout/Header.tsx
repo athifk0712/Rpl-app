@@ -2,95 +2,113 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Package, Search, GitCompare, Store, Menu, X } from "lucide-react";
+import { Search, Store, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/", label: "Beranda", icon: null },
-  { href: "/suppliers", label: "Cari Supplier", icon: Search },
-  { href: "/compare", label: "Bandingkan", icon: GitCompare },
+  { href: "/", label: "Beranda" },
+  { href: "/suppliers", label: "Cari Supplier" },
+  { href: "/compare", label: "Bandingkan" },
 ];
+
+function isActive(pathname: string, href: string) {
+  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+}
 
 export default function Header() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <header className="sticky top-0 z-50 border-b border-line bg-surface/90 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-6">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center">
-              <Store className="w-5 h-5 text-white" />
-            </div>
-            <div className="leading-tight">
-              <span className="font-bold text-gray-900 text-lg">SupplierHub</span>
-              <span className="hidden sm:block text-xs text-gray-500 -mt-0.5">Platform Supplier UMKM</span>
-            </div>
+          <Link href="/" className="flex items-center gap-2.5 rounded-md">
+            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
+              <Store className="h-4 w-4 text-on-primary" aria-hidden="true" />
+            </span>
+            <span className="text-[17px] font-bold tracking-tight text-ink">SupplierHub</span>
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {NAV_LINKS.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                  pathname === href
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                )}
-              >
-                {Icon && <Icon className="w-4 h-4" />}
-                {label}
-              </Link>
-            ))}
+          <nav aria-label="Navigasi utama" className="hidden h-full items-stretch gap-8 md:ml-6 md:flex">
+            {NAV_LINKS.map(({ href, label }) => {
+              const active = isActive(pathname, href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative flex items-center text-sm font-medium transition-colors duration-150",
+                    "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:transition-colors",
+                    active
+                      ? "text-ink after:bg-primary"
+                      : "text-ink-muted after:bg-transparent hover:text-ink"
+                  )}
+                >
+                  {label}
+                </Link>
+              );
+            })}
           </nav>
 
           {/* CTA */}
-          <div className="hidden md:flex items-center gap-2">
+          <div className="ml-auto hidden md:block">
             <Link
               href="/suppliers"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-on-primary transition-colors duration-150 hover:bg-primary-hover"
             >
-              <Package className="w-4 h-4" />
+              <Search className="h-4 w-4" aria-hidden="true" />
               Cari Bahan Baku
             </Link>
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Mobile toggle */}
           <button
-            className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+            type="button"
+            className="-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-muted md:hidden"
             onClick={() => setMobileOpen(!mobileOpen)}
+            aria-expanded={mobileOpen}
+            aria-controls="menu-mobile"
+            aria-label={mobileOpen ? "Tutup menu" : "Buka menu"}
           >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
           </button>
         </div>
       </div>
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-gray-200 bg-white px-4 pb-4 pt-2">
-          {NAV_LINKS.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                pathname === href
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              )}
-            >
-              {Icon && <Icon className="w-4 h-4" />}
-              {label}
-            </Link>
-          ))}
-        </div>
+        <nav id="menu-mobile" aria-label="Navigasi utama" className="border-t border-line bg-surface px-4 pb-4 pt-2 md:hidden">
+          {NAV_LINKS.map(({ href, label }) => {
+            const active = isActive(pathname, href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMobileOpen(false)}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors",
+                  active ? "bg-surface-muted text-ink" : "text-ink-muted hover:bg-surface-muted hover:text-ink"
+                )}
+              >
+                {label}
+              </Link>
+            );
+          })}
+          <Link
+            href="/suppliers"
+            onClick={() => setMobileOpen(false)}
+            className="mt-2 flex h-11 items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-on-primary"
+          >
+            <Search className="h-4 w-4" aria-hidden="true" />
+            Cari Bahan Baku
+          </Link>
+        </nav>
       )}
     </header>
   );

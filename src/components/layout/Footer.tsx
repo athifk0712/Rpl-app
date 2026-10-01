@@ -1,42 +1,61 @@
 import { Store, Mail, Phone } from "lucide-react";
 import Link from "next/link";
 
+const FEATURE_LINKS = [
+  { href: "/suppliers", label: "Cari Supplier" },
+  { href: "/compare", label: "Bandingkan Harga" },
+  { href: "/suppliers", label: "Katalog Produk" },
+];
+
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-300 mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="md:col-span-2">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Store className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-bold text-white text-lg">SupplierHub</span>
+    <footer className="mt-auto bg-primary text-on-primary-muted">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid gap-10 md:grid-cols-12">
+          <div className="md:col-span-6">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-on-primary">
+                <Store className="h-4 w-4 text-primary" aria-hidden="true" />
+              </span>
+              <span className="text-[17px] font-bold tracking-tight text-on-primary">SupplierHub</span>
             </div>
-            <p className="text-sm text-gray-400 leading-relaxed max-w-sm">
-              Platform pencarian dan perbandingan supplier bahan baku terpercaya untuk UMKM Indonesia. Temukan supplier terbaik, bandingkan harga, dan kelola pengadaan bahan baku lebih efisien.
+            <p className="mt-4 max-w-sm text-sm leading-relaxed">
+              Platform pencarian dan perbandingan supplier bahan baku untuk UMKM Indonesia. Temukan supplier,
+              bandingkan harga, dan kelola pengadaan bahan baku lebih efisien.
             </p>
           </div>
 
-          <div>
-            <h4 className="font-semibold text-white mb-3">Fitur</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/suppliers" className="hover:text-white transition-colors">Cari Supplier</Link></li>
-              <li><Link href="/compare" className="hover:text-white transition-colors">Bandingkan Harga</Link></li>
-              <li><Link href="/suppliers" className="hover:text-white transition-colors">Katalog Produk</Link></li>
+          <nav aria-label="Fitur" className="md:col-span-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-on-primary">Fitur</h2>
+            <ul className="mt-4 space-y-3 text-sm">
+              {FEATURE_LINKS.map(({ href, label }) => (
+                <li key={label}>
+                  <Link href={href} className="rounded-sm transition-colors hover:text-on-primary">
+                    {label}
+                  </Link>
+                </li>
+              ))}
             </ul>
-          </div>
+          </nav>
 
-          <div>
-            <h4 className="font-semibold text-white mb-3">Kontak</h4>
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-center gap-2"><Mail className="w-4 h-4" /> info@supplierhub.id</li>
-              <li className="flex items-center gap-2"><Phone className="w-4 h-4" /> 0800-1234-5678</li>
+          <div className="md:col-span-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-on-primary">Kontak</h2>
+            <ul className="mt-4 space-y-3 text-sm">
+              <li>
+                <a href="mailto:info@supplierhub.id" className="inline-flex items-center gap-2 rounded-sm transition-colors hover:text-on-primary">
+                  <Mail className="h-4 w-4" aria-hidden="true" /> info@supplierhub.id
+                </a>
+              </li>
+              <li>
+                <a href="tel:080012345678" className="inline-flex items-center gap-2 rounded-sm transition-colors hover:text-on-primary">
+                  <Phone className="h-4 w-4" aria-hidden="true" /> 0800-1234-5678
+                </a>
+              </li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-gray-800 mt-8 pt-6 text-center text-xs text-gray-500">
+        <div className="mt-12 border-t border-primary-soft pt-6 text-xs">
           © 2024 SupplierHub. Dibuat untuk membantu UMKM Indonesia berkembang.
         </div>
       </div>

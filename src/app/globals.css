@@ -1,28 +1,112 @@
 @import "tailwindcss";
 
+/*
+ * SupplierHub design tokens
+ * Primitive (raw values) → Semantic (@theme, purpose aliases) → Component (utilities in markup)
+ * Components must use the semantic names (bg-surface, text-ink, border-line, bg-accent…),
+ * never raw hex values.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* Primitives — navy/slate neutrals */
+  --navy-950: #020617;
+  --navy-900: #0f172a;
+  --navy-800: #1e293b;
+  --navy-700: #334155;
+  --navy-600: #475569;
+  --navy-500: #64748b;
+  --navy-300: #cbd5e1;
+  --navy-200: #e2e8f0;
+  --navy-100: #eef2f6;
+  --navy-50: #f8fafc;
+  --white: #ffffff;
+
+  /* Primitives — accent (trust blue) */
+  --blue-800: #075985;
+  --blue-700: #0369a1;
+  --blue-100: #e0f2fe;
+  --blue-50: #f0f9ff;
+
+  /* Primitives — status */
+  --green-700: #15803d;
+  --green-50: #f0fdf4;
+  --amber-500: #f59e0b;
+  --amber-700: #b45309;
+  --amber-50: #fffbeb;
+  --red-600: #dc2626;
+  --red-50: #fef2f2;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Semantic — surfaces */
+  --color-canvas: var(--navy-50);
+  --color-surface: var(--white);
+  --color-surface-muted: var(--navy-100);
+
+  /* Semantic — text */
+  --color-ink: var(--navy-950);
+  --color-ink-muted: var(--navy-600);
+  --color-ink-subtle: var(--navy-500);
+  --color-on-primary: var(--white);
+  --color-on-primary-muted: var(--navy-300);
+
+  /* Semantic — lines */
+  --color-line: var(--navy-200);
+  --color-line-strong: var(--navy-300);
+
+  /* Semantic — brand */
+  --color-primary: var(--navy-900);
+  --color-primary-hover: var(--navy-800);
+  --color-primary-soft: var(--navy-700);
+  --color-accent: var(--blue-700);
+  --color-accent-hover: var(--blue-800);
+  --color-accent-soft: var(--blue-50);
+  --color-accent-line: var(--blue-100);
+
+  /* Semantic — status */
+  --color-success: var(--green-700);
+  --color-success-soft: var(--green-50);
+  --color-rating: var(--amber-500);
+  --color-warning: var(--amber-700);
+  --color-warning-soft: var(--amber-50);
+  --color-danger: var(--red-600);
+  --color-danger-soft: var(--red-50);
+
+  /* Typography */
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 .line-clamp-2 {

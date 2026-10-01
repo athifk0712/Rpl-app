@@ -1,30 +1,50 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useRef, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  GitCompare, Plus, X, Star, MapPin, ShieldCheck, MessageCircle,
-  CheckCircle2, XCircle, Package, Truck, Clock, AlertTriangle, Trophy
-} from "lucide-react";
-import { SUPPLIERS, getSupplierById, getProductById, PRODUCTS } from "@/data/mock-data";
-import { Supplier } from "@/types";
-import { formatRupiah, getStockBadgeClass, getStockLabel } from "@/lib/utils";
+import { GitCompare, Plus, X, Star, MapPin, BadgeCheck, MessageCircle, Truck, Check, Minus } from "lucide-react";
+import { SUPPLIERS, getSupplierById, getProductById } from "@/data/mock-data";
+import { Supplier, SupplierProduct } from "@/types";
+import { cn, formatRupiah, getStockLabel } from "@/lib/utils";
 
-function ScoreBadge({ value, max, suffix = "" }: { value: number; max: number; suffix?: string }) {
-  const pct = (value / max) * 100;
-  const color = pct >= 70 ? "text-green-600 bg-green-50" : pct >= 40 ? "text-yellow-600 bg-yellow-50" : "text-red-600 bg-red-50";
-  return (
-    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>
-      {value}{suffix}
-    </span>
-  );
+const MAX_COMPARE = 3;
+
+const STOCK_CLASS: Record<SupplierProduct["stock"], string> = {
+  tersedia: "bg-success-soft text-success",
+  terbatas: "bg-warning-soft text-warning",
+  habis: "bg-danger-soft text-danger",
+};
+
+function getAllProducts(suppliers: Supplier[]): string[] {
+  const seen = new Set<string>();
+  suppliers.forEach((s) => s.products.forEach((p) => seen.add(p.productId)));
+  return [...seen];
 }
 
-function WinnerBadge({ label }: { label: string }) {
+function finalPrice(sp: SupplierProduct) {
+  return sp.pricePerUnit * (1 - (sp.discount ?? 0) / 100);
+}
+
+// Ids with the best value. Empty when fewer than 2 suppliers have a value to compare or they all tie.
+function pickWinners(entries: { id: string; value: number | null }[], mode: "min" | "max"): string[] {
+  const valid = entries.filter((e): e is { id: string; value: number } => e.value !== null);
+  if (valid.length < 2) return [];
+  const best = mode === "min" ? Math.min(...valid.map((e) => e.value)) : Math.max(...valid.map((e) => e.value));
+  const winners = valid.filter((e) => e.value === best).map((e) => e.id);
+  return winners.length === valid.length ? [] : winners;
+}
+
+function Monogram({ supplier, size = "md" }: { supplier: Supplier; size?: "sm" | "md" }) {
   return (
-    <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">
-      <Trophy className="w-3 h-3" /> {label}
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex flex-shrink-0 items-center justify-center rounded-lg border border-line bg-surface-muted font-bold tracking-wide text-primary-soft",
+        size === "md" ? "h-10 w-10 text-sm" : "h-9 w-9 text-xs"
+      )}
+    >
+      {supplier.logo}
     </span>
   );
 }
@@ -32,465 +52,492 @@ function WinnerBadge({ label }: { label: string }) {
 function ComparisonContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pickerRef = useRef<HTMLDialogElement>(null);
+  const [pickedProductId, setPickedProductId] = useState("");
 
-  const [selectedSuppliers, setSelectedSuppliers] = useState<Supplier[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const [showPicker, setShowPicker] = useState(false);
+  const ids = searchParams.get("ids")?.split(",").filter(Boolean) ?? [];
+  const selected = [...new Set(ids)]
+    .map((id) => getSupplierById(id))
+    .filter((s): s is Supplier => Boolean(s))
+    .slice(0, MAX_COMPARE);
 
-  useEffect(() => {
-    const ids = searchParams.get("ids")?.split(",").filter(Boolean) ?? [];
-    const suppliers = ids.map((id) => getSupplierById(id)).filter(Boolean) as Supplier[];
-    setSelectedSuppliers(suppliers);
+  const sellerCount = (pid: string) => selected.filter((s) => s.products.some((p) => p.productId === pid)).length;
+  // Most comparable products first: those sold by the most selected suppliers
+  const allProducts = getAllProducts(selected).sort((a, b) => sellerCount(b) - sellerCount(a));
+  const activeProductId = allProducts.includes(pickedProductId) ? pickedProductId : allProducts[0] ?? "";
+  const activeProduct = activeProductId ? getProductById(activeProductId) : undefined;
+  const offerOf = (s: Supplier) => s.products.find((p) => p.productId === activeProductId);
 
-    if (suppliers.length > 0) {
-      const sharedProductIds = getSharedProducts(suppliers);
-      if (sharedProductIds.length > 0) setSelectedProductId(sharedProductIds[0]);
-    }
-  }, [searchParams]);
+  const canAdd = selected.length < MAX_COMPARE;
+  const availableToAdd = SUPPLIERS.filter((s) => !selected.some((sel) => sel.id === s.id));
 
-  function getSharedProducts(suppliers: Supplier[]): string[] {
-    if (suppliers.length === 0) return [];
-    const sets = suppliers.map((s) => new Set(s.products.map((p) => p.productId)));
-    const first = sets[0];
-    return [...first].filter((id) => sets.slice(1).every((s) => s.has(id)));
-  }
-
-  function getAllProducts(suppliers: Supplier[]): string[] {
-    const seen = new Set<string>();
-    suppliers.forEach((s) => s.products.forEach((p) => seen.add(p.productId)));
-    return [...seen];
-  }
-
+  const setIds = (next: string[]) => {
+    router.replace(next.length > 0 ? `/compare?ids=${next.join(",")}` : "/compare", { scroll: false });
+  };
   const addSupplier = (id: string) => {
-    const supplier = getSupplierById(id);
-    if (!supplier || selectedSuppliers.some((s) => s.id === id)) return;
-    const updated = [...selectedSuppliers, supplier];
-    setSelectedSuppliers(updated);
-    setShowPicker(false);
-    router.replace(`/compare?ids=${updated.map((s) => s.id).join(",")}`);
-
-    const shared = getSharedProducts(updated);
-    if (!selectedProductId || !shared.includes(selectedProductId)) {
-      setSelectedProductId(shared[0] || getAllProducts(updated)[0] || "");
-    }
+    if (canAdd && !selected.some((s) => s.id === id)) setIds([...selected.map((s) => s.id), id]);
+    pickerRef.current?.close();
   };
+  const removeSupplier = (id: string) => setIds(selected.filter((s) => s.id !== id).map((s) => s.id));
+  const openPicker = () => pickerRef.current?.showModal();
 
-  const removeSupplier = (id: string) => {
-    const updated = selectedSuppliers.filter((s) => s.id !== id);
-    setSelectedSuppliers(updated);
-    router.replace(updated.length > 0 ? `/compare?ids=${updated.map((s) => s.id).join(",")}` : "/compare");
-  };
+  const bestPrice = pickWinners(selected.map((s) => ({ id: s.id, value: offerOf(s) ? finalPrice(offerOf(s)!) : null })), "min");
+  const bestMoq = pickWinners(selected.map((s) => ({ id: s.id, value: offerOf(s)?.minOrderQty ?? null })), "min");
+  const bestMinOrder = pickWinners(selected.map((s) => ({ id: s.id, value: s.minOrderValue })), "min");
+  const bestRating = pickWinners(selected.map((s) => ({ id: s.id, value: s.rating })), "max");
+  const bestReviews = pickWinners(selected.map((s) => ({ id: s.id, value: s.reviewCount })), "max");
 
-  const sharedProducts = getSharedProducts(selectedSuppliers);
-  const allProducts = getAllProducts(selectedSuppliers);
-  const activeProductId = selectedProductId || sharedProducts[0] || allProducts[0] || "";
+  const supplierOf = (id: string) => selected.find((s) => s.id === id)!;
+  const verdicts = [
+    {
+      label: `Harga terendah${activeProduct ? ` · ${activeProduct.name}` : ""}`,
+      winners: bestPrice,
+      value: (s: Supplier) => `${formatRupiah(finalPrice(offerOf(s)!))}/${activeProduct?.unit}`,
+    },
+    {
+      label: "Minimum order terkecil",
+      winners: bestMoq,
+      value: (s: Supplier) => `${offerOf(s)!.minOrderQty} ${activeProduct?.unit}`,
+    },
+    {
+      label: "Rating tertinggi",
+      winners: bestRating,
+      value: (s: Supplier) => `${s.rating.toFixed(1)} dari 5`,
+    },
+  ];
 
-  // Winner calculations
-  function getBestRating() {
-    const max = Math.max(...selectedSuppliers.map((s) => s.rating));
-    return selectedSuppliers.filter((s) => s.rating === max).map((s) => s.id);
-  }
-  function getBestPrice() {
-    const prices = selectedSuppliers.map((s) => {
-      const sp = s.products.find((p) => p.productId === activeProductId);
-      return { id: s.id, price: sp ? sp.pricePerUnit * (1 - (sp.discount ?? 0) / 100) : Infinity };
-    });
-    const min = Math.min(...prices.map((p) => p.price));
-    return prices.filter((p) => p.price === min).map((p) => p.id);
-  }
-  function getBestMoq() {
-    const moqs = selectedSuppliers.map((s) => {
-      const sp = s.products.find((p) => p.productId === activeProductId);
-      return { id: s.id, moq: sp ? sp.minOrderQty : Infinity };
-    });
-    const min = Math.min(...moqs.map((p) => p.moq));
-    return moqs.filter((p) => p.moq === min).map((p) => p.id);
-  }
-
-  const bestRating = selectedSuppliers.length > 0 ? getBestRating() : [];
-  const bestPrice = selectedSuppliers.length > 0 && activeProductId ? getBestPrice() : [];
-  const bestMoq = selectedSuppliers.length > 0 && activeProductId ? getBestMoq() : [];
-
-  const availableToAdd = SUPPLIERS.filter((s) => !selectedSuppliers.some((sel) => sel.id === s.id));
+  const showAddColumn = canAdd && selected.length > 0;
+  const columnCount = selected.length + 1 + (showAddColumn ? 1 : 0);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center">
-            <GitCompare className="w-5 h-5 text-white" />
+    <>
+      {/* Page header */}
+      <section className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8 lg:py-10">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold text-accent">Perbandingan</p>
+            <h1 className="mt-2 text-balance text-3xl font-bold tracking-tight text-ink sm:text-4xl">Bandingkan supplier</h1>
+            <p className="mt-2 text-base text-ink-muted">
+              Harga, minimum order, stok, dan reputasi hingga {MAX_COMPARE} supplier dalam satu tabel.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Bandingkan Supplier</h1>
-        </div>
-        <p className="text-gray-500 text-sm">Analisis side-by-side untuk memilih supplier terbaik sesuai kebutuhan UMKM Anda</p>
-      </div>
-
-      {/* Empty state */}
-      {selectedSuppliers.length === 0 && (
-        <div className="bg-white rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center">
-          <GitCompare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="font-semibold text-gray-700 mb-2">Belum ada supplier yang dipilih</h3>
-          <p className="text-gray-500 text-sm mb-6">Pilih minimal 2 supplier untuk mulai membandingkan harga, MOQ, dan spesifikasi lainnya</p>
-          <Link href="/suppliers" className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
-            <Plus className="w-4 h-4" /> Pilih Supplier dari Katalog
-          </Link>
-        </div>
-      )}
-
-      {/* Comparison table */}
-      {selectedSuppliers.length > 0 && (
-        <div className="space-y-6">
-          {/* Supplier header row */}
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="grid" style={{ gridTemplateColumns: `200px repeat(${selectedSuppliers.length}, 1fr)` }}>
-              {/* Label column */}
-              <div className="bg-gray-50 p-4 border-r border-gray-200 flex items-center">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Supplier</span>
-              </div>
-
-              {/* Supplier columns */}
-              {selectedSuppliers.map((s) => (
-                <div key={s.id} className="p-4 border-r border-gray-200 last:border-r-0">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm">
-                      {s.logo}
-                    </div>
-                    <button onClick={() => removeSupplier(s.id)} className="text-gray-400 hover:text-red-500 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1 flex-wrap mb-1">
-                    <span className="font-semibold text-gray-900 text-sm leading-tight">{s.name}</span>
-                    {s.verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <MapPin className="w-3 h-3" /> {s.city}
-                  </div>
-                  {bestRating.includes(s.id) && selectedSuppliers.length > 1 && (
-                    <div className="mt-2"><WinnerBadge label="Rating Terbaik" /></div>
-                  )}
-                </div>
-              ))}
-
-              {/* Add column */}
-              {selectedSuppliers.length < 3 && (
-                <div className="p-4 flex flex-col items-center justify-center bg-gray-50">
-                  <button
-                    onClick={() => setShowPicker(true)}
-                    className="w-10 h-10 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors mb-1"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                  <span className="text-xs text-gray-400">Tambah</span>
-                </div>
+          {selected.length > 0 && (
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-ink-muted">
+                <span className="font-semibold tabular-nums text-ink">{selected.length}</span> dari {MAX_COMPARE} supplier
+              </p>
+              {canAdd && (
+                <button
+                  type="button"
+                  onClick={openPicker}
+                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Tambah supplier
+                </button>
               )}
             </div>
-          </div>
-
-          {/* Supplier picker modal */}
-          {showPicker && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-900">Tambah Supplier ke Perbandingan</h3>
-                  <button onClick={() => setShowPicker(false)} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {availableToAdd.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => addSupplier(s.id)}
-                      className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors text-left"
-                    >
-                      <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">
-                        {s.logo}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 text-sm">{s.name}</div>
-                        <div className="text-xs text-gray-500">{s.city} · ★ {s.rating}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
           )}
+        </div>
+      </section>
 
-          {/* Product selector */}
-          {allProducts.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-semibold text-gray-700">Bandingkan untuk produk:</span>
-                <div className="flex flex-wrap gap-2">
+      <div className="mx-auto max-w-7xl px-4 py-8 pb-16 sm:px-6 lg:px-8">
+        {/* Empty state */}
+        {selected.length === 0 && (
+          <div className="flex flex-col items-center rounded-2xl border border-dashed border-line-strong bg-surface px-6 py-16 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-muted text-ink-subtle">
+              <GitCompare className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <h2 className="mt-4 text-lg font-bold tracking-tight text-ink">Belum ada supplier yang dipilih</h2>
+            <p className="mt-1 max-w-md text-sm text-ink-muted">
+              Pilih minimal 2 supplier untuk melihat siapa yang menawarkan harga, minimum order, dan rating terbaik.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={openPicker}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Pilih supplier
+              </button>
+              <Link
+                href="/suppliers"
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-5 text-sm font-semibold text-ink transition-colors hover:bg-surface-muted"
+              >
+                Buka katalog supplier
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {selected.length > 0 && (
+          <div className="space-y-8">
+            {/* Product selector */}
+            {allProducts.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-ink">Produk yang dibandingkan</h2>
+                <p className="mt-1 text-[13px] text-ink-subtle">
+                  Harga, minimum order, dan stok di bawah mengikuti produk yang dipilih.
+                </p>
+                <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
                   {allProducts.map((pid) => {
                     const product = getProductById(pid);
-                    const isShared = sharedProducts.includes(pid);
+                    const sellers = sellerCount(pid);
+                    const active = activeProductId === pid;
                     return (
                       <button
                         key={pid}
-                        onClick={() => setSelectedProductId(pid)}
-                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                          activeProductId === pid
-                            ? "bg-indigo-600 text-white border-indigo-600"
-                            : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
-                        } ${!isShared ? "opacity-60" : ""}`}
+                        type="button"
+                        onClick={() => setPickedProductId(pid)}
+                        aria-pressed={active}
+                        className={cn(
+                          "inline-flex h-9 flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[13px] font-medium transition-colors duration-150",
+                          active
+                            ? "border-primary bg-primary text-on-primary"
+                            : "border-line-strong bg-surface text-ink hover:border-ink-subtle"
+                        )}
                       >
                         {product?.name}
-                        {!isShared && " (partial)"}
+                        {sellers < selected.length && (
+                          <span className={cn("text-xs font-normal tabular-nums", active ? "text-on-primary-muted" : "text-ink-subtle")}>
+                            · {sellers}/{selected.length} supplier
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Comparison rows */}
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            {/* Section: Harga & Order */}
-            <div className="bg-indigo-50 px-5 py-3 border-b border-indigo-100">
-              <h3 className="font-semibold text-indigo-900 text-sm">Harga & Pemesanan</h3>
-            </div>
-
-            {/* Price row */}
-            {activeProductId && (() => {
-              const product = getProductById(activeProductId);
-              return (
-                <>
-                  <CompareRow
-                    label={`Harga / ${product?.unit ?? "unit"}`}
-                    suppliers={selectedSuppliers}
-                    winners={bestPrice}
-                    render={(s) => {
-                      const sp = s.products.find((p) => p.productId === activeProductId);
-                      if (!sp) return <span className="text-gray-400 text-xs">Tidak tersedia</span>;
-                      const final = sp.pricePerUnit * (1 - (sp.discount ?? 0) / 100);
-                      return (
-                        <div>
-                          <div className="font-bold text-gray-900 text-sm">{formatRupiah(final)}</div>
-                          {sp.discount && (
-                            <div className="text-xs text-gray-400 line-through">{formatRupiah(sp.pricePerUnit)}</div>
-                          )}
-                          {sp.discount && <span className="text-xs text-red-600 font-medium">Diskon {sp.discount}%</span>}
-                        </div>
-                      );
-                    }}
-                  />
-                  <CompareRow
-                    label="Min. Order Qty (MOQ)"
-                    suppliers={selectedSuppliers}
-                    winners={bestMoq}
-                    render={(s) => {
-                      const sp = s.products.find((p) => p.productId === activeProductId);
-                      if (!sp) return <span className="text-gray-400 text-xs">—</span>;
-                      return <span className="font-semibold text-gray-900 text-sm">{sp.minOrderQty} {product?.unit}</span>;
-                    }}
-                  />
-                  <CompareRow
-                    label="Status Stok"
-                    suppliers={selectedSuppliers}
-                    render={(s) => {
-                      const sp = s.products.find((p) => p.productId === activeProductId);
-                      if (!sp) return <span className="text-gray-400 text-xs">—</span>;
-                      return (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStockBadgeClass(sp.stock)}`}>
-                          {getStockLabel(sp.stock)}
-                        </span>
-                      );
-                    }}
-                  />
-                </>
-              );
-            })()}
-
-            <CompareRow
-              label="Min. Nilai Order"
-              suppliers={selectedSuppliers}
-              winners={selectedSuppliers.length > 1 ? [selectedSuppliers.reduce((a, b) => a.minOrderValue < b.minOrderValue ? a : b).id] : []}
-              render={(s) => <span className="font-semibold text-gray-900 text-sm">{formatRupiah(s.minOrderValue)}</span>}
-            />
-
-            {/* Section: Kualitas */}
-            <div className="bg-yellow-50 px-5 py-3 border-b border-yellow-100 border-t border-t-gray-100">
-              <h3 className="font-semibold text-yellow-900 text-sm">Kualitas & Kepercayaan</h3>
-            </div>
-
-            <CompareRow
-              label="Rating"
-              suppliers={selectedSuppliers}
-              winners={bestRating}
-              render={(s) => (
-                <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                  <span className="font-bold text-gray-900 text-sm">{s.rating}</span>
-                  <span className="text-xs text-gray-500">/ 5</span>
-                </div>
-              )}
-            />
-
-            <CompareRow
-              label="Jumlah Ulasan"
-              suppliers={selectedSuppliers}
-              winners={selectedSuppliers.length > 1 ? [selectedSuppliers.reduce((a, b) => a.reviewCount > b.reviewCount ? a : b).id] : []}
-              render={(s) => <span className="font-semibold text-gray-900 text-sm">{s.reviewCount.toLocaleString("id-ID")} ulasan</span>}
-            />
-
-            <CompareRow
-              label="Status Verifikasi"
-              suppliers={selectedSuppliers}
-              render={(s) => (
-                s.verified
-                  ? <span className="flex items-center gap-1 text-xs text-green-700"><CheckCircle2 className="w-4 h-4" /> Terverifikasi</span>
-                  : <span className="flex items-center gap-1 text-xs text-gray-500"><XCircle className="w-4 h-4" /> Belum</span>
-              )}
-            />
-
-            <CompareRow
-              label="Tahun Bergabung"
-              suppliers={selectedSuppliers}
-              render={(s) => <span className="font-medium text-gray-900 text-sm">{s.joinedYear}</span>}
-            />
-
-            {/* Section: Operasional */}
-            <div className="bg-green-50 px-5 py-3 border-b border-green-100 border-t border-t-gray-100">
-              <h3 className="font-semibold text-green-900 text-sm">Operasional & Pengiriman</h3>
-            </div>
-
-            <CompareRow
-              label="Waktu Respons"
-              suppliers={selectedSuppliers}
-              render={(s) => (
-                <span className="flex items-center gap-1 text-sm text-gray-800 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-gray-400" /> {s.responseTime}
-                </span>
-              )}
-            />
-
-            <CompareRow
-              label="Opsi Pengiriman"
-              suppliers={selectedSuppliers}
-              render={(s) => (
-                <div className="flex flex-col gap-1">
-                  {s.shippingOptions.slice(0, 2).map((opt) => (
-                    <span key={opt} className="text-xs text-gray-700 flex items-center gap-1">
-                      <Truck className="w-3 h-3 text-gray-400" /> {opt}
-                    </span>
-                  ))}
-                  {s.shippingOptions.length > 2 && (
-                    <span className="text-xs text-gray-400">+{s.shippingOptions.length - 2} lainnya</span>
-                  )}
-                </div>
-              )}
-            />
-
-            <CompareRow
-              label="Lokasi"
-              suppliers={selectedSuppliers}
-              render={(s) => (
-                <span className="text-sm text-gray-800 flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400" /> {s.city}, {s.province}
-                </span>
-              )}
-            />
-
-            {/* Section: Aksi */}
-            <div className="bg-gray-50 px-5 py-3 border-b border-gray-100 border-t border-t-gray-100">
-              <h3 className="font-semibold text-gray-700 text-sm">Aksi</h3>
-            </div>
-
-            <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: `200px repeat(${selectedSuppliers.length}, 1fr)` }}>
-              <div className="bg-gray-50 p-4 border-r border-gray-100" />
-              {selectedSuppliers.map((s) => (
-                <div key={s.id} className="p-4 border-r border-gray-100 last:border-r-0 space-y-2">
-                  <Link
-                    href={`/suppliers/${s.id}`}
-                    className="w-full text-center text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-colors block"
-                  >
-                    Lihat Detail
-                  </Link>
-                  <a
-                    href={`https://wa.me/${s.whatsapp}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full flex items-center justify-center gap-1.5 text-xs font-medium border border-green-500 text-green-600 hover:bg-green-50 py-2 px-3 rounded-lg transition-colors"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
-                  </a>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Summary */}
-          {selectedSuppliers.length >= 2 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-              <div className="flex items-start gap-2">
-                <Trophy className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-semibold text-amber-900 mb-2">Ringkasan Perbandingan</h4>
-                  <ul className="space-y-1 text-sm text-amber-800">
-                    {bestRating.length > 0 && (
-                      <li>• <span className="font-medium">Rating terbaik:</span> {bestRating.map((id) => getSupplierById(id)?.name).join(", ")}</li>
+            {/* Verdict */}
+            {selected.length >= 2 ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                {verdicts.map(({ label, winners, value }) => (
+                  <div key={label} className="rounded-xl border border-line bg-surface p-5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
+                    {winners.length > 0 ? (
+                      <>
+                        <p className="mt-2 text-base font-bold leading-snug text-ink">
+                          {winners.map((id) => supplierOf(id).name).join(" & ")}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-success">{value(supplierOf(winners[0]))}</p>
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-ink-muted">Tidak ada yang lebih unggul untuk kriteria ini.</p>
                     )}
-                    {bestPrice.length > 0 && activeProductId && (
-                      <li>• <span className="font-medium">Harga terbaik untuk {getProductById(activeProductId)?.name}:</span> {bestPrice.map((id) => getSupplierById(id)?.name).join(", ")}</li>
-                    )}
-                    {bestMoq.length > 0 && activeProductId && (
-                      <li>• <span className="font-medium">MOQ terkecil:</span> {bestMoq.map((id) => getSupplierById(id)?.name).join(", ")}</li>
-                    )}
-                  </ul>
-                </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="rounded-xl border border-accent-line bg-accent-soft px-4 py-3 text-sm text-ink">
+                Tambahkan minimal 1 supplier lagi untuk melihat mana yang paling unggul.
+              </p>
+            )}
 
-          <div className="flex gap-3 mt-2">
-            <Link href="/suppliers" className="text-sm text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1">
-              <Package className="w-4 h-4" /> Tambah lebih banyak supplier
-            </Link>
+            {/* Comparison table */}
+            <div className="relative overflow-x-auto rounded-2xl border border-line bg-surface">
+              <table className="w-full min-w-[600px] table-fixed border-collapse text-left text-sm">
+                <caption className="sr-only">Perbandingan detail supplier</caption>
+                <thead>
+                  <tr className="border-b border-line">
+                    <td className="sticky left-0 z-10 w-28 bg-surface p-4 align-bottom shadow-[1px_0_0_var(--color-line)] sm:w-44">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">Supplier</span>
+                    </td>
+                    {selected.map((s) => (
+                      <th key={s.id} scope="col" className="border-l border-line p-4 align-top font-normal">
+                        <div className="flex items-start justify-between gap-2">
+                          <Monogram supplier={s} />
+                          <button
+                            type="button"
+                            onClick={() => removeSupplier(s.id)}
+                            aria-label={`Hapus ${s.name} dari perbandingan`}
+                            className="-mr-2 -mt-2 flex h-9 w-9 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-muted hover:text-danger"
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                        <Link
+                          href={`/suppliers/${s.id}`}
+                          className="mt-3 block rounded-sm text-[15px] font-semibold leading-snug text-ink hover:text-accent"
+                        >
+                          {s.name}
+                        </Link>
+                        <p className="mt-1 flex items-center gap-1 text-[13px] text-ink-subtle">
+                          <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                          {s.city}
+                        </p>
+                      </th>
+                    ))}
+                    {showAddColumn && (
+                      <td className="w-40 border-l border-line p-4 align-middle">
+                        <button
+                          type="button"
+                          onClick={openPicker}
+                          className="flex h-full min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong text-[13px] font-medium text-ink-muted transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent"
+                        >
+                          <Plus className="h-5 w-5" aria-hidden="true" />
+                          Tambah supplier
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                </thead>
+
+                <SectionRows title="Harga & pemesanan" columnCount={columnCount}>
+                  {activeProduct && (
+                    <>
+                      <CompareRow label={`Harga per ${activeProduct.unit}`} suppliers={selected} winners={bestPrice} addColumn={showAddColumn}>
+                        {(s) => {
+                          const sp = offerOf(s);
+                          if (!sp) return <NotAvailable />;
+                          return (
+                            <div>
+                              <span className="text-base font-bold tabular-nums text-ink">{formatRupiah(finalPrice(sp))}</span>
+                              {sp.discount ? (
+                                <p className="mt-0.5 text-xs tabular-nums text-ink-subtle">
+                                  <span className="line-through">{formatRupiah(sp.pricePerUnit)}</span>
+                                  <span className="ml-1.5 font-semibold text-danger">−{sp.discount}%</span>
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        }}
+                      </CompareRow>
+                      <CompareRow label="Minimum order (MOQ)" suppliers={selected} winners={bestMoq} addColumn={showAddColumn}>
+                        {(s) => {
+                          const sp = offerOf(s);
+                          return sp ? (
+                            <span className="font-semibold tabular-nums text-ink">{sp.minOrderQty} {activeProduct.unit}</span>
+                          ) : (
+                            <NotAvailable />
+                          );
+                        }}
+                      </CompareRow>
+                      <CompareRow label="Stok" suppliers={selected} addColumn={showAddColumn}>
+                        {(s) => {
+                          const sp = offerOf(s);
+                          return sp ? (
+                            <span className={cn("inline-flex rounded-md px-2 py-0.5 text-xs font-semibold", STOCK_CLASS[sp.stock])}>
+                              {getStockLabel(sp.stock)}
+                            </span>
+                          ) : (
+                            <NotAvailable />
+                          );
+                        }}
+                      </CompareRow>
+                    </>
+                  )}
+                  <CompareRow label="Min. nilai order" suppliers={selected} winners={bestMinOrder} addColumn={showAddColumn}>
+                    {(s) => <span className="font-semibold tabular-nums text-ink">{formatRupiah(s.minOrderValue)}</span>}
+                  </CompareRow>
+                </SectionRows>
+
+                <SectionRows title="Reputasi" columnCount={columnCount}>
+                  <CompareRow label="Rating" suppliers={selected} winners={bestRating} addColumn={showAddColumn}>
+                    {(s) => (
+                      <span className="flex items-center gap-1 font-semibold tabular-nums text-ink">
+                        <Star className="h-4 w-4 fill-rating text-rating" aria-hidden="true" />
+                        {s.rating.toFixed(1)}
+                        <span className="font-normal text-ink-subtle">/ 5</span>
+                      </span>
+                    )}
+                  </CompareRow>
+                  <CompareRow label="Jumlah ulasan" suppliers={selected} winners={bestReviews} addColumn={showAddColumn}>
+                    {(s) => <span className="font-semibold tabular-nums text-ink">{s.reviewCount.toLocaleString("id-ID")}</span>}
+                  </CompareRow>
+                  <CompareRow label="Verifikasi" suppliers={selected} addColumn={showAddColumn}>
+                    {(s) =>
+                      s.verified ? (
+                        <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-success">
+                          <BadgeCheck className="h-4 w-4" aria-hidden="true" /> Terverifikasi
+                        </span>
+                      ) : (
+                        <span className="text-[13px] text-ink-subtle">Belum terverifikasi</span>
+                      )
+                    }
+                  </CompareRow>
+                  <CompareRow label="Bergabung sejak" suppliers={selected} addColumn={showAddColumn}>
+                    {(s) => <span className="tabular-nums text-ink">{s.joinedYear}</span>}
+                  </CompareRow>
+                </SectionRows>
+
+                <SectionRows title="Operasional" columnCount={columnCount}>
+                  <CompareRow label="Waktu respons" suppliers={selected} addColumn={showAddColumn}>
+                    {(s) => <span className="font-medium text-ink">{s.responseTime}</span>}
+                  </CompareRow>
+                  <CompareRow label="Pengiriman" suppliers={selected} addColumn={showAddColumn}>
+                    {(s) => (
+                      <ul className="space-y-1">
+                        {s.shippingOptions.map((opt) => (
+                          <li key={opt} className="flex items-start gap-1.5 text-[13px] text-ink">
+                            <Truck className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-ink-subtle" aria-hidden="true" />
+                            {opt}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CompareRow>
+                  <CompareRow label="Lokasi" suppliers={selected} addColumn={showAddColumn}>
+                    {(s) => <span className="text-ink">{s.city}, {s.province}</span>}
+                  </CompareRow>
+                </SectionRows>
+
+                <tfoot>
+                  <tr className="border-t border-line">
+                    <td className="sticky left-0 z-10 bg-surface p-4 shadow-[1px_0_0_var(--color-line)]" />
+                    {selected.map((s) => (
+                      <td key={s.id} className="border-l border-line p-4">
+                        <div className="flex flex-col gap-2">
+                          <a
+                            href={`https://wa.me/${s.whatsapp}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-[13px] font-semibold text-on-primary transition-colors hover:bg-primary-hover"
+                          >
+                            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                            Hubungi<span className="sr-only"> {s.name} via WhatsApp</span>
+                          </a>
+                          <Link
+                            href={`/suppliers/${s.id}`}
+                            className="flex h-10 items-center justify-center rounded-lg border border-line-strong px-3 text-[13px] font-semibold text-ink transition-colors hover:bg-surface-muted"
+                          >
+                            Lihat detail<span className="sr-only"> {s.name}</span>
+                          </Link>
+                        </div>
+                      </td>
+                    ))}
+                    {showAddColumn && <td className="border-l border-line" />}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
+        )}
+      </div>
+
+      {/* Supplier picker */}
+      <dialog
+        ref={pickerRef}
+        aria-labelledby="picker-title"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) e.currentTarget.close();
+        }}
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-line bg-surface p-0 text-ink shadow-[0_24px_64px_-16px_rgb(15_23_42/0.45)] backdrop:bg-primary/50 backdrop:backdrop-blur-sm"
+      >
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <h2 id="picker-title" className="text-base font-bold tracking-tight text-ink">Tambah supplier</h2>
+          <button
+            type="button"
+            onClick={() => pickerRef.current?.close()}
+            aria-label="Tutup"
+            className="-mr-2 flex h-10 w-10 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
         </div>
-      )}
-    </div>
+        <ul className="max-h-[60vh] overflow-y-auto p-2">
+          {availableToAdd.map((s) => (
+            <li key={s.id}>
+              <button
+                type="button"
+                onClick={() => addSupplier(s.id)}
+                className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-canvas"
+              >
+                <Monogram supplier={s} size="sm" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                    <span className="truncate">{s.name}</span>
+                    {s.verified && <BadgeCheck className="h-4 w-4 flex-shrink-0 text-success" aria-label="Terverifikasi" />}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-ink-subtle">
+                    {s.city} · {s.categories.join(", ")}
+                  </span>
+                </span>
+                <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold tabular-nums text-ink">
+                  <Star className="h-3.5 w-3.5 fill-rating text-rating" aria-hidden="true" />
+                  {s.rating.toFixed(1)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </dialog>
+    </>
+  );
+}
+
+function NotAvailable() {
+  return (
+    <span className="inline-flex items-center gap-1 text-[13px] text-ink-subtle">
+      <Minus className="h-3.5 w-3.5" aria-hidden="true" /> Tidak dijual
+    </span>
+  );
+}
+
+function SectionRows({ title, columnCount, children }: { title: string; columnCount: number; children: React.ReactNode }) {
+  return (
+    <tbody>
+      <tr className="border-t border-line bg-canvas">
+        <th scope="colgroup" colSpan={columnCount} className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <span className="sticky left-4 inline-block">{title}</span>
+        </th>
+      </tr>
+      {children}
+    </tbody>
   );
 }
 
 function CompareRow({
   label,
   suppliers,
-  render,
   winners = [],
+  addColumn,
+  children,
 }: {
   label: string;
   suppliers: Supplier[];
-  render: (s: Supplier) => React.ReactNode;
   winners?: string[];
+  addColumn: boolean;
+  children: (s: Supplier) => React.ReactNode;
 }) {
   return (
-    <div className="grid border-b border-gray-100 last:border-b-0" style={{ gridTemplateColumns: `200px repeat(${suppliers.length}, 1fr)` }}>
-      <div className="bg-gray-50 p-4 border-r border-gray-100 flex items-center">
-        <span className="text-xs font-medium text-gray-600">{label}</span>
-      </div>
-      {suppliers.map((s) => (
-        <div key={s.id} className={`p-4 border-r border-gray-100 last:border-r-0 ${winners.includes(s.id) ? "bg-green-50" : ""}`}>
-          <div>{render(s)}</div>
-          {winners.includes(s.id) && suppliers.length > 1 && (
-            <div className="mt-1">
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Terbaik</span>
-            </div>
-          )}
-        </div>
-      ))}
+    <tr className="border-t border-line">
+      <th scope="row" className="sticky left-0 z-10 bg-surface p-4 align-top text-[13px] font-medium text-ink-muted shadow-[1px_0_0_var(--color-line)]">
+        {label}
+      </th>
+      {suppliers.map((s) => {
+        const isWinner = winners.includes(s.id);
+        return (
+          <td key={s.id} className={cn("border-l border-line p-4 align-top", isWinner && "bg-success-soft")}>
+            {children(s)}
+            {isWinner && (
+              <span className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-success">
+                <Check className="h-3.5 w-3.5" aria-hidden="true" /> Terbaik
+              </span>
+            )}
+          </td>
+        );
+      })}
+      {addColumn && <td className="border-l border-line" />}
+    </tr>
+  );
+}
+
+function CompareFallback() {
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-busy="true">
+      <p className="sr-only">Memuat halaman perbandingan…</p>
+      <div className="h-8 w-64 animate-pulse rounded-md bg-surface-muted" />
+      <div className="mt-8 h-96 animate-pulse rounded-2xl bg-surface-muted" />
     </div>
   );
 }
 
 export default function ComparePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-gray-500">Memuat halaman perbandingan...</div>}>
+    <Suspense fallback={<CompareFallback />}>
       <ComparisonContent />
     </Suspense>
   );

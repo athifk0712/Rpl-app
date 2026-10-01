@@ -17,45 +17,64 @@ export default function ComparisonBar({ compareList, onRemove, onClear }: Props)
   const suppliers = compareList.map((id) => getSupplierById(id)).filter(Boolean) as Supplier[];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-indigo-200 shadow-2xl px-4 py-3">
-      <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap sm:flex-nowrap">
-        <div className="flex items-center gap-2 text-sm font-medium text-indigo-700">
-          <GitCompare className="w-4 h-4" />
-          <span>Bandingkan ({compareList.length}/3):</span>
-        </div>
+    <div
+      role="region"
+      aria-label="Daftar perbandingan supplier"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-surface/95 px-4 py-3 shadow-[0_-12px_32px_-16px_rgb(15_23_42/0.25)] backdrop-blur"
+    >
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 sm:flex-nowrap">
+        <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <GitCompare className="h-4 w-4 text-accent" aria-hidden="true" />
+          <span>
+            Bandingkan <span className="tabular-nums text-ink-subtle">({compareList.length}/3)</span>
+          </span>
+        </p>
 
-        <div className="flex items-center gap-2 flex-1 flex-wrap">
+        <ul className="flex flex-1 flex-wrap items-center gap-2">
           {suppliers.map((s) => (
-            <div key={s.id} className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-1.5 text-sm">
-              <div className="w-6 h-6 bg-indigo-600 rounded text-white text-xs font-bold flex items-center justify-center">
+            <li key={s.id} className="flex items-center gap-2 rounded-lg border border-line bg-canvas py-1 pl-1.5 pr-1 text-sm">
+              <span className="flex h-6 w-6 items-center justify-center rounded bg-primary text-[10px] font-bold text-on-primary" aria-hidden="true">
                 {s.logo}
-              </div>
-              <span className="font-medium text-gray-800 max-w-[120px] truncate">{s.name}</span>
-              <button onClick={() => onRemove(s.id)} className="text-gray-400 hover:text-red-500 transition-colors ml-1">
-                <X className="w-3.5 h-3.5" />
+              </span>
+              <span className="max-w-[140px] truncate font-medium text-ink">{s.name}</span>
+              <button
+                type="button"
+                onClick={() => onRemove(s.id)}
+                aria-label={`Hapus ${s.name} dari perbandingan`}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-muted hover:text-danger"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
-            </div>
+            </li>
           ))}
 
           {Array.from({ length: 3 - compareList.length }).map((_, i) => (
-            <div key={i} className="flex items-center gap-1.5 border-2 border-dashed border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-400">
-              + Tambah supplier
-            </div>
+            <li
+              key={i}
+              className="hidden items-center rounded-lg border border-dashed border-line-strong px-3 py-1.5 text-xs text-ink-subtle sm:flex"
+            >
+              Slot kosong
+            </li>
           ))}
-        </div>
+        </ul>
 
         <div className="flex items-center gap-2">
-          <button onClick={onClear} className="text-xs text-gray-500 hover:text-red-600 transition-colors px-2 py-1 rounded">
+          <button
+            type="button"
+            onClick={onClear}
+            className="h-10 rounded-lg px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-muted hover:text-danger"
+          >
             Hapus semua
           </button>
-          {compareList.length >= 2 && (
+          {compareList.length >= 2 ? (
             <Link
               href={`/compare?ids=${compareList.join(",")}`}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+              className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover"
             >
-              <GitCompare className="w-4 h-4" />
-              Bandingkan Sekarang
+              Bandingkan sekarang
             </Link>
+          ) : (
+            <span className="text-xs text-ink-subtle">Pilih minimal 2 supplier</span>
           )}
         </div>
       </div>
