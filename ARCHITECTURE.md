@@ -1,312 +1,323 @@
-# Dokumen Arsitektur — SupplierHub
+# Dokumen Arsitektur — SupplierHub (MVP v1)
 
-Platform pencarian dan perbandingan supplier bahan baku untuk UMKM.
+Platform pencarian, perbandingan, dan permintaan penawaran supplier bahan baku untuk UMKM.
 
 ## 1. Tujuan
 
-Membantu pelaku UMKM menemukan supplier atau grosir bahan baku yang sesuai kebutuhan usaha, lalu membandingkan
-beberapa supplier berdasarkan harga, minimum order, stok, lokasi, dan reputasi sebelum menghubungi supplier
-langsung lewat WhatsApp atau email.
+Membantu pelaku UMKM menemukan supplier atau grosir bahan baku yang sesuai kebutuhan usaha, membandingkan
+beberapa supplier berdasarkan harga, minimum order, stok, lokasi, dan reputasi, lalu mengirim permintaan
+penawaran harga (RFQ) yang tersimpan di sistem.
 
-Versi pertama (v1) adalah aplikasi web **frontend-only**: semua data supplier dan produk berupa data contoh (mock data)
-yang disimpan di dalam kode. Belum ada backend, database, maupun autentikasi.
+MVP v1 adalah aplikasi **full-stack dalam satu proyek Next.js**: halaman UI dan REST API berjalan di server
+yang sama, data disimpan di database SQLite lewat Prisma. Belum ada autentikasi; diasumsikan satu pengguna.
 
 ## 2. Stack Teknologi
 
-| Lapisan        | Teknologi                                   |
-| -------------- | ------------------------------------------- |
-| Framework      | Next.js 16 (App Router)                     |
-| UI Library     | React 19                                    |
-| Bahasa         | TypeScript 5                                |
-| Styling        | Tailwind CSS 4 (via `@tailwindcss/postcss`) |
-| Ikon           | lucide-react                                |
-| Linting        | ESLint 9 + `eslint-config-next`             |
-| Sumber data    | Modul TypeScript statis (`src/data/mock-data.ts`) |
-| Integrasi luar | Tautan `wa.me` (WhatsApp) dan `mailto:` (email) |
+| Lapisan        | Teknologi                                                   |
+| -------------- | ----------------------------------------------------------- |
+| Framework      | Next.js 16 (App Router)                                     |
+| UI             | React 19, Tailwind CSS 4, lucide-react                      |
+| Bahasa         | TypeScript 5                                                |
+| API            | REST, Next.js Route Handlers (`src/app/api/**/route.ts`)    |
+| ORM            | Prisma 7 (`prisma-client` generator + driver adapter)       |
+| Database       | SQLite (`prisma/dev.db`) via `@prisma/adapter-better-sqlite3` |
+| Testing        | Vitest (acceptance test terhadap database test terpisah)    |
+| Integrasi luar | Tautan `wa.me` (WhatsApp) dan `mailto:`                     |
+
+Alasan memilih SQLite: lingkungan pengembangan tidak memiliki Docker, dan SQLite cukup untuk MVP satu pengguna.
+Karena akses data lewat Prisma, pindah ke PostgreSQL/MySQL cukup mengganti `provider` dan driver adapter.
 
 ## 3. Aturan Kode
 
-* Semua label, tombol, pesan, dan teks UI menggunakan Bahasa Indonesia.
-* Komponen React menggunakan PascalCase (`SupplierCard`, `SearchBar`).
-* Interface dan type menggunakan PascalCase (`Supplier`, `SupplierProduct`, `SortOption`).
-* Variabel lokal dan fungsi menggunakan camelCase (`searchSuppliers`, `formatRupiah`).
-* Konstanta global menggunakan UPPER_SNAKE_CASE (`SUPPLIERS`, `CATEGORIES`, `MAX_COMPARE`).
-* Import antar modul menggunakan alias `@/` yang mengarah ke `src/`.
-* Komentar hanya ditulis jika benar-benar diperlukan.
-* Komponen yang memakai state atau hook browser diberi direktif `"use client"`; selain itu tetap Server Component.
+* Semua label, tombol, pesan error, dan validasi menggunakan Bahasa Indonesia.
+* PascalCase untuk komponen React, interface, dan type; camelCase untuk variabel dan fungsi;
+  UPPER_SNAKE_CASE untuk konstanta global.
+* Import memakai alias `@/` → `src/`.
+* Tipe domain hanya didefinisikan sekali di `src/types/index.ts`. Frontend **tidak** mengimpor tipe Prisma.
+* Service di `src/server/` memetakan baris Prisma ke tipe domain sebelum dikirim ke UI atau API.
+* `"use client"` hanya untuk komponen yang butuh state/interaksi browser.
+* Komentar hanya jika benar-benar perlu.
 
 ## 4. Gambaran Arsitektur
 
 ```mermaid
 flowchart LR
-  User[Pengguna UMKM<br/>Browser] -->|HTTP| Next[Next.js App Router]
+  User[Pengguna UMKM<br/>Browser]
 
-  subgraph Next[Aplikasi Next.js]
+  subgraph Next[Aplikasi Next.js — satu proses server]
     direction TB
-    Pages[Halaman<br/>src/app] --> Components[Komponen UI<br/>src/components]
-    Pages --> Data[Data Layer<br/>src/data/mock-data.ts]
-    Components --> Data
-    Pages --> Utils[Utilitas<br/>src/lib/utils.ts]
-    Components --> Utils
-    Data --> Types[Tipe Domain<br/>src/types]
+    SC[Server Components<br/>/, /suppliers/id, /compare, /permintaan]
+    CC[Client Components<br/>/suppliers, SearchBar, QuoteRequestForm]
+    API[Route Handlers<br/>/api/suppliers, /api/quote-requests]
+    SVC[Service layer<br/>supplier-service, quote-service]
+    DBC[Prisma Client<br/>src/server/db.ts]
+    SC --> SVC
+    API --> SVC
+    SVC --> DBC
   end
 
-  User -.->|wa.me / mailto| Supplier[Supplier<br/>WhatsApp / Email]
+  DB[(SQLite<br/>prisma/dev.db)]
+
+  User -->|HTML| SC
+  User -->|interaksi| CC
+  CC -->|fetch JSON| API
+  DBC --> DB
+  User -.->|wa.me / mailto| Supplier[Supplier]
 ```
 
-Arsitektur v1 berlapis sederhana:
+Lapisan:
 
-1. **Presentation layer** — halaman (`src/app`) dan komponen (`src/components`).
-2. **Data layer** — `src/data/mock-data.ts` berisi data statis serta fungsi query (`searchSuppliers`, `getSupplierById`, dll).
-   Halaman tidak mengakses array data secara langsung untuk logika pencarian, melainkan lewat fungsi ini, sehingga
-   nanti mudah diganti dengan pemanggilan API tanpa mengubah komponen.
-3. **Domain types** — `src/types/index.ts` menjadi satu-satunya sumber definisi model.
-4. **Utilities** — `src/lib/utils.ts` berisi format Rupiah, format angka, label/badge stok, rating bintang, dan `cn()`.
+1. **Presentation** — `src/app/**/page.tsx` dan `src/components/**`.
+   * Server Component memanggil service secara langsung (tanpa HTTP) dan dirender per request (`await connection()`),
+     sehingga tampilan selalu sesuai isi database.
+   * Client Component memanggil REST API lewat `src/lib/api.ts`.
+2. **API** — `src/app/api/**/route.ts`. Membaca parameter/body, memvalidasi, memanggil service,
+   dan mengembalikan JSON dengan status HTTP yang sesuai (200/201/400/404).
+3. **Service** — `src/server/supplier-service.ts`, `src/server/quote-service.ts`. Berisi query, aturan bisnis,
+   dan mapping Prisma → tipe domain. Dipakai bersama oleh Server Component dan Route Handler.
+4. **Data access** — `src/server/db.ts` membuat satu instance PrismaClient (disimpan di `globalThis` saat dev).
+5. **Database** — skema di `prisma/schema.prisma`, riwayat perubahan di `prisma/migrations/`, data contoh di `prisma/seed.ts`.
 
 ### Strategi rendering
 
-| Rute               | Jenis                      | Keterangan                                                        |
-| ------------------ | -------------------------- | ----------------------------------------------------------------- |
-| `/`                | Server Component (statis)  | Landing page, dirender saat build                                 |
-| `/suppliers`       | Client Component           | Pencarian, filter, dan urutan diproses di browser                 |
-| `/suppliers/[id]`  | SSG (`generateStaticParams`) | Satu halaman HTML statis per supplier dibuat saat build         |
-| `/compare`         | Client Component           | Daftar supplier yang dibandingkan disimpan di query string `?ids=` |
+| Rute               | Jenis                         | Sumber data                                  |
+| ------------------ | ----------------------------- | -------------------------------------------- |
+| `/`                | Server Component, dinamis     | `searchSuppliers()`, `getProducts()`         |
+| `/suppliers`       | Client Component              | `GET /api/suppliers` (setiap filter/sort berubah) |
+| `/suppliers/[id]`  | Server Component, dinamis     | `getSupplierById()`; form RFQ → `POST /api/quote-requests` |
+| `/compare`         | Server (data) + Client (interaksi) | `searchSuppliers()` → props `CompareClient`; pilihan di URL `?ids=` |
+| `/permintaan`      | Server Component, dinamis     | `listQuoteRequests()`; filter lewat `?supplier=` |
 
-State aplikasi:
-
-* Filter pencarian dan urutan: React state lokal di halaman `/suppliers`.
-* Daftar perbandingan sementara (maks. 3): React state di `/suppliers`, ditampilkan oleh `ComparisonBar`.
-* Daftar perbandingan aktif: URL (`/compare?ids=s01,s02,s03`) sehingga bisa dibagikan dan di-bookmark.
-* Tidak ada state global, `localStorage`, atau penyimpanan server.
-
-## 5. Entitas Utama
-
-1. **Product** — katalog bahan baku umum
-
-   * id
-   * name
-   * category
-   * unit (kg, liter, meter, pcs, dll)
-   * description
-
-2. **Supplier** — penjual / grosir
-
-   * id
-   * name
-   * logo (inisial)
-   * description
-   * location, city, province
-   * phone, whatsapp, email
-   * rating, reviewCount
-   * joinedYear
-   * verified
-   * categories
-   * shippingOptions, shippingCost
-   * responseTime
-   * minOrderValue
-   * products: `SupplierProduct[]`
-
-3. **SupplierProduct** — penawaran satu produk oleh satu supplier (relasi Supplier ↔ Product)
-
-   * productId
-   * pricePerUnit
-   * minOrderQty
-   * stock: `tersedia` | `terbatas` | `habis`
-   * discount (opsional, persen)
-
-4. **CompareItem** — pasangan `supplierId` + `productId` untuk perbandingan
-
-Relasi:
+## 5. Model Data
 
 ```mermaid
 erDiagram
+  CATEGORY ||--o{ PRODUCT : mengelompokkan
+  CATEGORY }o--o{ SUPPLIER : "kategori supplier"
   SUPPLIER ||--o{ SUPPLIER_PRODUCT : menawarkan
-  PRODUCT  ||--o{ SUPPLIER_PRODUCT : ditawarkan_oleh
-  SUPPLIER {
-    string id
+  PRODUCT  ||--o{ SUPPLIER_PRODUCT : ditawarkan
+  SUPPLIER ||--o{ SHIPPING_OPTION : punya
+  SUPPLIER ||--o{ SHIPPING_RATE : punya
+  SUPPLIER ||--o{ QUOTE_REQUEST : menerima
+  PRODUCT  ||--o{ QUOTE_REQUEST : diminta
+
+  CATEGORY { int id PK
+    string name UK }
+  PRODUCT { string id PK
+    string name
+    string unit
+    int categoryId FK }
+  SUPPLIER { string id PK
     string name
     string city
     string province
     float rating
     int reviewCount
     bool verified
-    int minOrderValue
-  }
-  PRODUCT {
-    string id
-    string name
-    string category
-    string unit
-  }
-  SUPPLIER_PRODUCT {
-    string productId
+    int minOrderValue }
+  SUPPLIER_PRODUCT { string supplierId PK
+    string productId PK
     int pricePerUnit
     int minOrderQty
     string stock
-    int discount
-  }
+    int discount }
+  SHIPPING_OPTION { int id PK
+    string supplierId FK
+    string name }
+  SHIPPING_RATE { int id PK
+    string supplierId FK
+    string zone
+    int cost }
+  QUOTE_REQUEST { int id PK
+    string supplierId FK
+    string productId FK
+    string businessName
+    string contactName
+    string phone
+    int quantity
+    int unitPrice
+    string note
+    string status
+    datetime createdAt }
 ```
 
-Data contoh v1: 10 supplier, 22 produk, 8 kategori, 8 provinsi.
+Catatan desain:
 
-## 6. Aturan Bisnis
+* `SupplierProduct` adalah tabel relasi Supplier ↔ Product dengan primary key gabungan (`supplierId`, `productId`):
+  satu supplier hanya punya satu penawaran per produk.
+* Daftar kategori, opsi kirim, dan ongkir per zona dinormalisasi ke tabel sendiri karena SQLite tidak punya tipe array.
+* `QuoteRequest.unitPrice` adalah **snapshot** harga setelah diskon saat permintaan dibuat,
+  supaya estimasi total tidak berubah jika supplier mengubah harga.
+* `stock` bernilai `tersedia` | `terbatas` | `habis`; `status` RFQ saat ini selalu `BARU`.
 
-* **Pencarian** (`searchSuppliers`) mencocokkan kata kunci (tidak peka huruf besar/kecil) dengan nama supplier,
-  nama produk, atau kategori produk.
-* **Filter** bersifat AND: kategori, provinsi, dan harga maksimum per unit. Supplier lolos filter harga jika
-  minimal satu produknya ≤ harga maksimum. Filter kosong diabaikan.
-* **Urutan hasil**: rating tertinggi (default), ulasan terbanyak, minimum order terendah, minimum order tertinggi.
-* **Perbandingan** maksimal 3 supplier. ID duplikat atau tidak valid di URL diabaikan.
-* **Harga akhir** = `pricePerUnit × (1 − discount / 100)`.
-* **Penentuan "terbaik"** di halaman perbandingan:
-  * Harga terendah dan minimum order terkecil untuk produk yang dipilih (nilai minimum).
-  * Rating tertinggi dan ulasan terbanyak (nilai maksimum).
-  * Tidak ada pemenang jika kurang dari 2 supplier memiliki nilai, atau semua nilainya sama.
-* **Produk yang dibandingkan** diurutkan dari yang dijual oleh paling banyak supplier terpilih.
-* **Warna badge stok**: tersedia = hijau, terbatas = kuning/oranye, habis = merah.
+Data contoh (seed): 8 kategori, 22 produk, 10 supplier.
 
-## 7. Fitur dan Halaman
+## 6. REST API
 
-1. **Beranda** (`/`)
+| Method | Endpoint | Keterangan | Respons |
+| ------ | -------- | ---------- | ------- |
+| GET | `/api/suppliers?query=&category=&province=&maxPrice=&sort=` | Cari & filter supplier | 200 `{ total, suppliers }`, 400 parameter tidak valid |
+| GET | `/api/suppliers/:id` | Detail supplier + produk | 200 `Supplier`, 404 |
+| POST | `/api/quote-requests` | Buat permintaan penawaran | 201 `QuoteRequest`, 400 `{ error, fields }`, 404 supplier tidak ada |
+| GET | `/api/quote-requests?supplierId=` | Daftar permintaan, terbaru di atas | 200 `{ total, quotes }` |
 
-   * Hero dengan pencarian cepat dan kata kunci populer.
-   * Kartu kategori bahan baku yang menuju `/suppliers?category=...`.
-   * Daftar supplier unggulan.
-   * Ajakan untuk mencari dan membandingkan supplier.
+`sort`: `rating` (default) | `review` | `price_asc` | `price_desc` (berdasarkan minimum order supplier).
 
-2. **Direktori Supplier** (`/suppliers`)
+Contoh body `POST /api/quote-requests`:
 
-   * `SearchBar` dengan kata kunci, kategori, provinsi, dan harga maksimum.
-   * Menerima parameter awal `?query=` dan `?category=` dari halaman lain.
-   * Pilihan urutan dan tampilan kisi / daftar.
-   * `SupplierCard` dengan tombol detail, WhatsApp, dan tambah ke perbandingan.
-   * `ComparisonBar` melayang di bawah layar saat ada supplier yang dipilih.
-   * Empty state jika tidak ada hasil, dengan tombol reset pencarian.
+```json
+{
+  "supplierId": "s10",
+  "productId": "p01",
+  "businessName": "Roti Bu Sari",
+  "contactName": "Sari Wulandari",
+  "phone": "081234567890",
+  "quantity": 150,
+  "note": "Kirim minggu depan"
+}
+```
 
-3. **Detail Supplier** (`/suppliers/[id]`)
+## 7. Aturan Bisnis
 
-   * Profil, lokasi, rating, status terverifikasi, waktu respons.
-   * Tabel produk dengan harga, diskon, minimum order, dan stok.
-   * Opsi dan biaya pengiriman.
-   * Tombol hubungi via WhatsApp (pesan otomatis), email permintaan penawaran, dan bandingkan.
+**Pencarian (Fitur 1)**
 
-4. **Perbandingan Supplier** (`/compare`)
+* Kata kunci dicocokkan (tidak peka huruf besar/kecil) ke nama supplier, nama produk, atau kategori produk.
+* Filter digabung dengan AND: kategori supplier, provinsi, dan harga maksimum per unit
+  (lolos jika minimal satu produk ≤ harga maksimum). Filter kosong diabaikan.
+* Semua filter dan urutan dikerjakan database (klausa `WHERE`/`ORDER BY` dari Prisma), bukan di browser.
 
-   * Tabel berdampingan hingga 3 supplier.
-   * Pemilih produk untuk membandingkan harga, minimum order, dan stok produk yang sama.
-   * Ringkasan pemenang per kriteria.
-   * Dialog untuk menambah supplier, tombol hapus per kolom.
-   * Empty state jika belum ada supplier yang dipilih.
+**Perbandingan**
 
-## 8. Alur Pengguna Utama
+* Maksimal 3 supplier; ID duplikat atau tidak valid di URL diabaikan.
+* Harga akhir = `pricePerUnit × (1 − discount/100)`.
+* "Terbaik" per kriteria hanya ditandai jika minimal 2 supplier punya nilai dan nilainya tidak sama semua.
+
+**Permintaan penawaran (Fitur 2)** — semua divalidasi di server:
+
+| Aturan | Pesan |
+| ------ | ----- |
+| Produk wajib dipilih | "Pilih produk yang ingin ditanyakan." |
+| Nama usaha & nama kontak 2–100 karakter | "Nama usaha wajib diisi (minimal 2 karakter)." |
+| Nomor WhatsApp format Indonesia (`08…`, `628…`, `+628…`, spasi/strip dibuang) | "Nomor WhatsApp tidak valid. Contoh: 081234567890." |
+| Jumlah bilangan bulat > 0 | "Jumlah harus bilangan bulat lebih dari 0." |
+| Produk harus dijual supplier tersebut | "Produk ini tidak dijual oleh supplier tersebut." |
+| Stok tidak boleh habis | "Stok … sedang habis." |
+| Jumlah ≥ minimum order produk | "Minimum order … adalah … kg." |
+| Catatan maks. 500 karakter | "Catatan maksimal 500 karakter." |
+
+Nomor referensi: `RFQ-` + id 5 digit (contoh `RFQ-00001`). Estimasi total = `unitPrice × quantity`.
+
+## 8. Alur Data
+
+### Fitur 1 — mencari supplier
 
 ```mermaid
 sequenceDiagram
-  actor U as Pengguna UMKM
-  participant H as Beranda
-  participant S as /suppliers
-  participant D as /suppliers/[id]
-  participant C as /compare
-  participant W as WhatsApp
+  actor U as Pengguna
+  participant P as /suppliers (Client)
+  participant A as GET /api/suppliers
+  participant S as supplier-service
+  participant D as SQLite
 
-  U->>H: Buka aplikasi
-  U->>H: Cari "tepung" / pilih kategori
-  H->>S: Navigasi ?query=tepung
-  S->>S: searchSuppliers() + sort (di browser)
-  U->>S: Tambah 2–3 supplier ke perbandingan
-  S->>C: Navigasi ?ids=s01,s04
-  C->>C: Hitung harga akhir & pemenang
-  U->>D: Lihat detail supplier pilihan
-  U->>W: Hubungi supplier via wa.me
+  U->>P: Ketik "tepung", pilih provinsi
+  P->>A: fetch ?query=tepung&province=Jawa Barat&sort=rating
+  A->>A: validasi sort & maxPrice
+  A->>S: searchSuppliers(params)
+  S->>D: SELECT … WHERE … ORDER BY rating DESC
+  D-->>S: baris supplier + produk + ongkir
+  S-->>A: Supplier[] (sudah dipetakan ke tipe domain)
+  A-->>P: 200 { total, suppliers }
+  P-->>U: Kartu supplier (atau empty state / pesan error)
+```
+
+### Fitur 2 — mengirim permintaan penawaran
+
+```mermaid
+sequenceDiagram
+  actor U as Pengguna
+  participant F as QuoteRequestForm
+  participant A as POST /api/quote-requests
+  participant Q as quote-service
+  participant D as SQLite
+
+  U->>F: Isi produk, jumlah, nama, WhatsApp
+  F->>A: JSON body
+  A->>Q: createQuoteRequest(body)
+  Q->>Q: parseQuoteInput (field wajib, format)
+  Q->>D: cek supplier & penawaran (stok, minOrderQty)
+  alt tidak valid
+    Q-->>A: { status 400/404, fields }
+    A-->>F: error per field
+    F-->>U: pesan merah di bawah input
+  else valid
+    Q->>D: INSERT QuoteRequest (unitPrice = harga setelah diskon)
+    Q-->>A: QuoteRequest + kode RFQ
+    A-->>F: 201
+    F-->>U: Nomor referensi + estimasi total
+  end
+  U->>U: Buka /permintaan → tabel riwayat
 ```
 
 ## 9. Struktur Folder
 
 ```text
 Rpl-app/
-  public/                       aset statis
+  prisma/
+    schema.prisma               model database
+    migrations/                 riwayat migrasi SQL
+    seed.ts                     isi data contoh
+    seed-data.ts                data contoh (dulu src/data/mock-data.ts)
+  prisma.config.ts              konfigurasi Prisma CLI (lokasi skema, migrasi, seed, DATABASE_URL)
   src/
     app/
-      layout.tsx                layout root (Header, Footer, font, metadata)
-      globals.css               design token & Tailwind
+      api/
+        suppliers/route.ts            GET daftar supplier
+        suppliers/[id]/route.ts       GET detail supplier
+        quote-requests/route.ts       GET & POST permintaan penawaran
       page.tsx                  Beranda
-      suppliers/
-        page.tsx                Direktori + pencarian
-        [id]/page.tsx           Detail supplier (SSG)
-      compare/
-        page.tsx                Perbandingan supplier
+      suppliers/page.tsx        Direktori + pencarian (client)
+      suppliers/[id]/page.tsx   Detail supplier + form RFQ
+      compare/page.tsx          Ambil data (server)
+      compare/CompareClient.tsx Tabel perbandingan (client)
+      permintaan/page.tsx       Riwayat permintaan penawaran
     components/
-      layout/
-        Header.tsx              navigasi + menu mobile
-        Footer.tsx
-      search/
-        SearchBar.tsx           form kata kunci & filter
-      supplier/
-        SupplierCard.tsx        kartu ringkas supplier
-        ComparisonBar.tsx       bar daftar perbandingan
-    data/
-      mock-data.ts              data contoh + fungsi query
+      layout/                   Header, Footer
+      search/SearchBar.tsx
+      supplier/                 SupplierCard, ComparisonBar, QuoteRequestForm
+    server/                     hanya berjalan di server
+      db.ts                     PrismaClient
+      supplier-service.ts
+      quote-service.ts
     lib/
-      utils.ts                  helper format & styling
-    types/
-      index.ts                  model domain
-  next.config.ts
-  tsconfig.json
-  eslint.config.mjs
-  postcss.config.mjs
-  package.json
+      api.ts                    fetcher untuk client component
+      constants.ts              daftar kategori & provinsi
+      utils.ts                  format Rupiah, badge stok, dll
+    types/index.ts              tipe domain & DTO API
+    generated/prisma/           Prisma Client hasil generate (tidak di-commit)
+  tests/                        acceptance test Vitest
+  docs/
+    LAPORAN-P5.md
+    evidence/                   log verifikasi API
 ```
 
 ## 10. Kebutuhan UI
 
-* Seluruh teks dalam Bahasa Indonesia, mata uang dalam format Rupiah (`Intl.NumberFormat("id-ID")`).
-* Responsif untuk mobile, tablet, dan desktop; menu navigasi mobile pada `Header`.
-* Warna, permukaan, dan teks memakai design token di `globals.css` (`ink`, `surface`, `accent`, `line`, dll).
-* Aksesibilitas dasar: label untuk input, `aria-label` pada tombol ikon, `aria-live` pada jumlah hasil,
-  `aria-pressed` pada tombol toggle, dialog native `<dialog>`.
-* Komponen sederhana: kartu, tabel, badge, form, empty state.
-* Tanpa grafik pada versi pertama.
+* Bahasa Indonesia, format Rupiah `Intl.NumberFormat("id-ID")`, tanggal zona Asia/Jakarta.
+* Responsif (mobile–desktop), menu mobile di `Header`.
+* State yang ditangani: loading (skeleton), error (pesan + tombol coba lagi), empty state, sukses.
+* Form: label untuk setiap input, `aria-invalid` + `aria-describedby` untuk pesan error.
+* Badge stok: tersedia hijau, terbatas kuning, habis merah. Tanpa grafik di versi pertama.
 
-## 11. Menjalankan Aplikasi
+## 11. Batasan MVP v1
 
-```bash
-npm install
-npm run dev      # http://localhost:3000
-npm run build    # build produksi (termasuk SSG halaman detail)
-npm run start
-npm run lint
-```
+* Belum ada login (UMKM/supplier/admin); halaman `/permintaan` menampilkan semua permintaan.
+* Status RFQ belum bisa diubah (selalu `BARU`); supplier belum bisa membalas di aplikasi.
+* Data supplier dan produk hanya bisa diubah lewat seed / Prisma Studio.
+* SQLite cocok untuk satu server; untuk produksi multi-instance gunakan PostgreSQL.
 
-## 12. Batasan Versi 1
+## 12. Rencana Pengembangan
 
-* Data statis: perubahan data supplier memerlukan perubahan kode dan build ulang.
-* Tidak ada akun pengguna, login supplier, atau panel admin.
-* Tidak ada transaksi / pemesanan di dalam aplikasi; transaksi terjadi di luar lewat WhatsApp atau email.
-* Rating dan ulasan bersifat data contoh, belum dapat diisi pengguna.
-
-## 13. Rencana Pengembangan (v2)
-
-Arsitektur target jika aplikasi dikembangkan menjadi full-stack. Bagian ini **belum diimplementasikan**.
-
-```mermaid
-flowchart LR
-  Browser --> Next[Next.js<br/>Pages + Route Handlers]
-  Next --> ORM[Prisma ORM]
-  ORM --> DB[(PostgreSQL / MySQL)]
-  Next --> Auth[Autentikasi<br/>UMKM & Supplier]
-```
-
-* Ganti `src/data/mock-data.ts` dengan **Route Handlers** Next.js (`src/app/api/.../route.ts`) yang membaca database.
-  Karena halaman sudah memakai fungsi query, perubahan cukup di data layer.
-* Tabel database mengikuti entitas di bagian 5; `SupplierProduct` menjadi tabel relasi dengan
-  unique key (`supplierId`, `productId`).
-* Rencana endpoint REST:
-  * `GET /api/suppliers?query=&category=&province=&maxPrice=&sort=`
-  * `GET /api/suppliers/:id`
-  * `GET /api/products`
-  * `GET /api/categories`
-  * `GET /api/compare?ids=s01,s02,s03`
-  * `POST /api/suppliers`, `PUT /api/suppliers/:id`, `DELETE /api/suppliers/:id` (khusus admin / supplier)
-  * `POST /api/suppliers/:id/reviews`
-* Fitur lanjutan: login supplier untuk mengelola produk dan stok, ulasan dari UMKM, simpan supplier favorit,
-  dan permintaan penawaran (RFQ) di dalam aplikasi.
+* Autentikasi UMKM dan supplier; supplier mengelola produk, stok, dan membalas RFQ (status `DIBALAS`, `DITUTUP`).
+* CRUD supplier/produk untuk admin.
+* Ulasan dan rating dari UMKM.
+* Pindah ke PostgreSQL dan deploy.

@@ -1,13 +1,51 @@
-# Judul Projek RPL
+# SupplierHub — Pencarian & Perbandingan Supplier Bahan Baku untuk UMKM
 
-## 1. Sistem Informasi Pencarian Supplier dan Grosir Bahan Baku untuk UMKM
+Aplikasi web full-stack untuk membantu UMKM mencari supplier/grosir bahan baku, membandingkan penawaran,
+dan mengirim permintaan penawaran harga (RFQ).
 
-Membantu UMKM menemukan supplier atau grosir yang menyediakan bahan baku sesuai kebutuhan usaha.
+Judul proyek RPL: **Platform Pencarian dan Perbandingan Supplier Bahan Baku bagi Pelaku UMKM**.
 
-## 2. Platform Pencarian dan Perbandingan Supplier Bahan Baku bagi Pelaku UMKM
+## Stack
 
-Membantu UMKM mencari dan membandingkan supplier berdasarkan harga, lokasi, produk, dan ketersediaan barang.
+* Next.js 16 (App Router) — halaman React + REST API (Route Handlers) dalam satu proyek
+* TypeScript, Tailwind CSS 4, lucide-react
+* Prisma 7 + SQLite (driver adapter `better-sqlite3`)
+* Vitest untuk acceptance test
 
-## 3. Sistem Informasi Pengadaan Bahan Baku UMKM Berbasis Pencarian Supplier dan Grosir
+## Fitur MVP v1
 
-Membantu UMKM dalam proses pencarian dan pemilihan supplier untuk memenuhi kebutuhan bahan baku usaha.
+| Fitur | Halaman | API |
+| ----- | ------- | --- |
+| 1. Pencarian & filter supplier dari database | `/suppliers`, `/suppliers/[id]`, `/`, `/compare` | `GET /api/suppliers`, `GET /api/suppliers/:id` |
+| 2. Permintaan penawaran (RFQ) | form di `/suppliers/[id]`, `/permintaan` | `POST /api/quote-requests`, `GET /api/quote-requests` |
+
+## Menjalankan
+
+Prasyarat: Node.js 20+ (diuji dengan Node 24) dan npm. Tidak perlu Docker atau server database.
+
+```bash
+npm install                 # juga menjalankan `prisma generate`
+cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
+npm run db:setup            # buat database prisma/dev.db dari migrasi + isi data contoh
+npm run dev                 # http://localhost:3000
+```
+
+Perintah lain:
+
+```bash
+npm test                    # 12 acceptance test (memakai prisma/test.db terpisah)
+npm run lint
+npm run build && npm start  # build & jalankan mode produksi
+npm run db:seed             # reset isi database ke data contoh
+npm run db:migrate          # buat migrasi baru setelah mengubah prisma/schema.prisma
+npx prisma studio           # lihat isi database di browser
+```
+
+> Setelah mengubah `schema.prisma` dan menjalankan migrasi/generate, **restart `npm run dev`**.
+> Dev server menyimpan instance PrismaClient lama sehingga model baru belum dikenali.
+
+## Dokumentasi
+
+* [ARCHITECTURE.md](ARCHITECTURE.md) — arsitektur, model data, API, alur data
+* [docs/LAPORAN-P5.md](docs/LAPORAN-P5.md) — proses Brief → Plan → Build → Verify → Commit per fitur
+* [docs/evidence/](docs/evidence/) — bukti verifikasi (log request API)
