@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { href: "/", label: "Beranda" },
   { href: "/suppliers", label: "Cari Supplier" },
   { href: "/compare", label: "Bandingkan" },
+  { href: "/permintaan", label: "Permintaan" },
 ];
 
 function isActive(pathname: string, href: string) {

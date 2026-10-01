@@ -7,6 +7,7 @@ const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: proces
 
 async function main() {
   await prisma.$transaction([
+    prisma.quoteRequest.deleteMany(),
     prisma.supplierProduct.deleteMany(),
     prisma.shippingOption.deleteMany(),
     prisma.shippingRate.deleteMany(),

@@ -1,0 +1,77 @@
+# Bukti verifikasi Fitur 2 — dijalankan 2026-10-01 14:55 terhadap build produksi (next start, http://localhost:3100)
+
+$ curl -X POST /api/quote-requests -d '{"supplierId":"s10","productId":"p01","businessName":"Roti Bu Sari","contactName":"Sari Wulandari","phone":"0812-3456-7890","quantity":150,"note":"Kirim minggu depan"}'
+{
+  "id": 1,
+  "supplierId": "s10",
+  "productId": "p01",
+  "businessName": "Roti Bu Sari",
+  "contactName": "Sari Wulandari",
+  "phone": "081234567890",
+  "quantity": 150,
+  "unitPrice": 10080,
+  "note": "Kirim minggu depan",
+  "status": "BARU",
+  "code": "RFQ-00001",
+  "supplierName": "PT Surya Bahan Industri",
+  "productName": "Tepung Terigu Protein Tinggi",
+  "unit": "kg",
+  "estimatedTotal": 1512000,
+  "createdAt": "2026-10-01T07:55:40.764Z"
+}
+[HTTP 201]
+
+$ curl -X POST /api/quote-requests -d '{"supplierId":"s10","productId":"","businessName":"","phone":"12345","quantity":0}'
+{
+  "error": "Data permintaan penawaran belum valid.",
+  "fields": {
+    "productId": "Pilih produk yang ingin ditanyakan.",
+    "businessName": "Nama usaha wajib diisi (minimal 2 karakter).",
+    "contactName": "Nama kontak wajib diisi (minimal 2 karakter).",
+    "phone": "Nomor WhatsApp tidak valid. Contoh: 081234567890.",
+    "quantity": "Jumlah harus bilangan bulat lebih dari 0."
+  }
+}
+[HTTP 400]
+
+$ curl -X POST /api/quote-requests -d '{"supplierId":"s10","productId":"p01","businessName":"Roti Bu Sari","contactName":"Sari","phone":"081234567890","quantity":99}'
+{
+  "error": "Data permintaan penawaran belum valid.",
+  "fields": {
+    "quantity": "Minimum order Tepung Terigu Protein Tinggi adalah 100 kg."
+  }
+}
+[HTTP 400]
+
+$ curl -X POST /api/quote-requests -d '{"supplierId":"s10","productId":"p05","businessName":"Roti Bu Sari","contactName":"Sari","phone":"081234567890","quantity":200}'
+{
+  "error": "Data permintaan penawaran belum valid.",
+  "fields": {
+    "productId": "Produk ini tidak dijual oleh supplier tersebut."
+  }
+}
+[HTTP 400]
+
+$ curl -X POST /api/quote-requests -d '{"supplierId":"x99","productId":"p01","businessName":"Roti Bu Sari","contactName":"Sari","phone":"081234567890","quantity":200}'
+{
+  "error": "Supplier tidak ditemukan.",
+  "fields": {
+    "supplierId": "Supplier tidak ditemukan."
+  }
+}
+[HTTP 404]
+
+$ curl /api/quote-requests?supplierId=s10
+{
+  "total": 1,
+  "quotes": [
+    "RFQ-00001 | PT Surya Bahan Industri | Tepung Terigu Protein Tinggi | 150 kg | 1512000 | BARU"
+  ]
+}
+
+## Halaman UI
+GET /suppliers/s10 -> HTTP 200
+GET /permintaan -> HTTP 200
+GET /permintaan?supplier=s10 -> HTTP 200
+Halaman /suppliers/s10 memuat form: 1 kecocokan teks 'Kirim Permintaan Penawaran'
+Halaman /permintaan memuat RFQ: RFQ-00001 

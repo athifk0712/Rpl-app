@@ -1,4 +1,12 @@
-import type { ApiError, SupplierListResponse, SupplierSearchParams } from "@/types";
+import type {
+  ApiError,
+  QuoteFieldErrors,
+  QuoteRequest,
+  QuoteRequestInput,
+  QuoteValidationError,
+  SupplierListResponse,
+  SupplierSearchParams,
+} from "@/types";
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal });
@@ -13,4 +21,24 @@ export function fetchSuppliers(params: SupplierSearchParams, signal?: AbortSigna
     if (value) search.set(key, String(value));
   }
   return getJson<SupplierListResponse>(`/api/suppliers?${search}`, signal);
+}
+
+export type SubmitQuoteResult =
+  | { ok: true; quote: QuoteRequest }
+  | { ok: false; error: string; fields: QuoteFieldErrors };
+
+export async function submitQuoteRequest(input: QuoteRequestInput): Promise<SubmitQuoteResult> {
+  try {
+    const res = await fetch("/api/quote-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const body = await res.json();
+    if (res.ok) return { ok: true, quote: body as QuoteRequest };
+    const err = body as Partial<QuoteValidationError>;
+    return { ok: false, error: err.error ?? "Gagal mengirim permintaan.", fields: err.fields ?? {} };
+  } catch {
+    return { ok: false, error: "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.", fields: {} };
+  }
 }

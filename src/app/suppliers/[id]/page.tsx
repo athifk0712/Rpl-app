@@ -2,8 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   MapPin, Star, ShieldCheck, Phone, Mail, MessageCircle,
-  Clock, Package, Truck, ChevronLeft, GitCompare, AlertTriangle, CheckCircle2
+  Clock, Package, Truck, ChevronLeft, GitCompare, AlertTriangle, CheckCircle2, FileText
 } from "lucide-react";
+import QuoteRequestForm from "@/components/supplier/QuoteRequestForm";
 import { connection } from "next/server";
 import { getSupplierById } from "@/server/supplier-service";
 import { formatRupiah, getStockBadgeClass, getStockLabel } from "@/lib/utils";
@@ -145,6 +146,15 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
               </div>
             )}
           </div>
+
+          {/* Quote request */}
+          <section id="penawaran" className="bg-white rounded-2xl border border-gray-200 p-6 scroll-mt-20">
+            <h2 className="text-lg font-bold text-gray-900">Minta Penawaran Harga</h2>
+            <p className="mt-1 mb-5 text-sm text-gray-600">
+              Kirim kebutuhan Anda ke {supplier.name}. Permintaan disimpan dan dapat dipantau di halaman Permintaan.
+            </p>
+            <QuoteRequestForm supplierId={supplier.id} offers={supplier.products} />
+          </section>
         </div>
 
         {/* Sidebar */}
@@ -164,6 +174,12 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             </div>
 
             <div className="space-y-2">
+              <a
+                href="#penawaran"
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
+              >
+                <FileText className="w-4 h-4" /> Minta Penawaran
+              </a>
               <a
                 href={`https://wa.me/${supplier.whatsapp}?text=Halo, saya dari SupplierHub dan tertarik dengan produk dari ${supplier.name}`}
                 target="_blank"

@@ -63,3 +63,40 @@ export interface SupplierListResponse {
 export interface ApiError {
   error: string;
 }
+
+export interface QuoteRequestInput {
+  supplierId: string;
+  productId: string;
+  businessName: string;
+  contactName: string;
+  phone: string;
+  quantity: number;
+  note?: string;
+}
+
+export type QuoteField = keyof QuoteRequestInput;
+
+export type QuoteFieldErrors = Partial<Record<QuoteField, string>>;
+
+export interface QuoteRequest {
+  id: number;
+  code: string;
+  supplierId: string;
+  supplierName: string;
+  productId: string;
+  productName: string;
+  unit: string;
+  businessName: string;
+  contactName: string;
+  phone: string;
+  quantity: number;
+  unitPrice: number;
+  estimatedTotal: number;
+  note: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface QuoteValidationError extends ApiError {
+  fields: QuoteFieldErrors;
+}
