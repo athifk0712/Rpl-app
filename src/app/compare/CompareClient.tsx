@@ -5,34 +5,15 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { GitCompare, Plus, X, Star, MapPin, BadgeCheck, MessageCircle, Truck, Check, Minus } from "lucide-react";
 import type { Product, Supplier, SupplierProduct } from "@/types";
+import { comparableProducts, MAX_COMPARE, parseCompareIds, summarizeComparison } from "@/lib/compare";
+import { finalPrice } from "@/lib/pricing";
 import { cn, formatRupiah, getStockLabel } from "@/lib/utils";
-
-const MAX_COMPARE = 3;
 
 const STOCK_CLASS: Record<SupplierProduct["stock"], string> = {
   tersedia: "bg-success-soft text-success",
   terbatas: "bg-warning-soft text-warning",
   habis: "bg-danger-soft text-danger",
 };
-
-function getAllProducts(suppliers: Supplier[]): string[] {
-  const seen = new Set<string>();
-  suppliers.forEach((s) => s.products.forEach((p) => seen.add(p.productId)));
-  return [...seen];
-}
-
-function finalPrice(sp: SupplierProduct) {
-  return sp.pricePerUnit * (1 - (sp.discount ?? 0) / 100);
-}
-
-// Ids with the best value. Empty when fewer than 2 suppliers have a value to compare or they all tie.
-function pickWinners(entries: { id: string; value: number | null }[], mode: "min" | "max"): string[] {
-  const valid = entries.filter((e): e is { id: string; value: number } => e.value !== null);
-  if (valid.length < 2) return [];
-  const best = mode === "min" ? Math.min(...valid.map((e) => e.value)) : Math.max(...valid.map((e) => e.value));
-  const winners = valid.filter((e) => e.value === best).map((e) => e.id);
-  return winners.length === valid.length ? [] : winners;
-}
 
 function Monogram({ supplier, size = "md" }: { supplier: Supplier; size?: "sm" | "md" }) {
   return (
@@ -58,15 +39,9 @@ function ComparisonContent({ suppliers }: { suppliers: Supplier[] }) {
   const productById = new Map<string, Product>(suppliers.flatMap((s) => s.products.map((sp) => [sp.productId, sp.product])));
   const getProductById = (id: string) => productById.get(id);
 
-  const ids = searchParams.get("ids")?.split(",").filter(Boolean) ?? [];
-  const selected = [...new Set(ids)]
-    .map((id) => getSupplierById(id))
-    .filter((s): s is Supplier => Boolean(s))
-    .slice(0, MAX_COMPARE);
-
+  const selected = parseCompareIds(searchParams.get("ids"), suppliers.map((s) => s.id)).map((id) => getSupplierById(id)!);
+  const allProducts = comparableProducts(selected);
   const sellerCount = (pid: string) => selected.filter((s) => s.products.some((p) => p.productId === pid)).length;
-  // Most comparable products first: those sold by the most selected suppliers
-  const allProducts = getAllProducts(selected).sort((a, b) => sellerCount(b) - sellerCount(a));
   const activeProductId = allProducts.includes(pickedProductId) ? pickedProductId : allProducts[0] ?? "";
   const activeProduct = activeProductId ? getProductById(activeProductId) : undefined;
   const offerOf = (s: Supplier) => s.products.find((p) => p.productId === activeProductId);
@@ -84,11 +59,12 @@ function ComparisonContent({ suppliers }: { suppliers: Supplier[] }) {
   const removeSupplier = (id: string) => setIds(selected.filter((s) => s.id !== id).map((s) => s.id));
   const openPicker = () => pickerRef.current?.showModal();
 
-  const bestPrice = pickWinners(selected.map((s) => ({ id: s.id, value: offerOf(s) ? finalPrice(offerOf(s)!) : null })), "min");
-  const bestMoq = pickWinners(selected.map((s) => ({ id: s.id, value: offerOf(s)?.minOrderQty ?? null })), "min");
-  const bestMinOrder = pickWinners(selected.map((s) => ({ id: s.id, value: s.minOrderValue })), "min");
-  const bestRating = pickWinners(selected.map((s) => ({ id: s.id, value: s.rating })), "max");
-  const bestReviews = pickWinners(selected.map((s) => ({ id: s.id, value: s.reviewCount })), "max");
+  const summary = summarizeComparison(selected, activeProductId);
+  const bestPrice = summary.bestPrice;
+  const bestMoq = summary.bestMinOrderQty;
+  const bestMinOrder = summary.bestMinOrderValue;
+  const bestRating = summary.bestRating;
+  const bestReviews = summary.bestReviews;
 
   const supplierOf = (id: string) => selected.find((s) => s.id === id)!;
   const verdicts = [

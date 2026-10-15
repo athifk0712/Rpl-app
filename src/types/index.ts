@@ -78,6 +78,8 @@ export type QuoteField = keyof QuoteRequestInput;
 
 export type QuoteFieldErrors = Partial<Record<QuoteField, string>>;
 
+export type QuoteStatus = "BARU" | "DIBALAS" | "DITERIMA" | "DITOLAK" | "DIBATALKAN";
+
 export interface QuoteRequest {
   id: number;
   code: string;
@@ -93,8 +95,18 @@ export interface QuoteRequest {
   unitPrice: number;
   estimatedTotal: number;
   note: string | null;
-  status: string;
+  status: QuoteStatus;
+  offeredPrice: number | null;
+  offeredTotal: number | null;
+  replyNote: string | null;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuoteStatusUpdate {
+  status: QuoteStatus;
+  offeredPrice?: number;
+  replyNote?: string;
 }
 
 export interface QuoteValidationError extends ApiError {

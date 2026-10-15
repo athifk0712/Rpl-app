@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { GitCompare, X } from "lucide-react";
+import { MAX_COMPARE, MIN_COMPARE } from "@/lib/compare";
 import type { Supplier } from "@/types";
 
 interface Props {
@@ -23,7 +24,7 @@ export default function ComparisonBar({ suppliers, onRemove, onClear }: Props) {
         <p className="flex items-center gap-2 text-sm font-semibold text-ink">
           <GitCompare className="h-4 w-4 text-accent" aria-hidden="true" />
           <span>
-            Bandingkan <span className="tabular-nums text-ink-subtle">({suppliers.length}/3)</span>
+            Bandingkan <span className="tabular-nums text-ink-subtle">({suppliers.length}/{MAX_COMPARE})</span>
           </span>
         </p>
 
@@ -45,7 +46,7 @@ export default function ComparisonBar({ suppliers, onRemove, onClear }: Props) {
             </li>
           ))}
 
-          {Array.from({ length: 3 - suppliers.length }).map((_, i) => (
+          {Array.from({ length: MAX_COMPARE - suppliers.length }).map((_, i) => (
             <li
               key={i}
               className="hidden items-center rounded-lg border border-dashed border-line-strong px-3 py-1.5 text-xs text-ink-subtle sm:flex"
@@ -63,7 +64,7 @@ export default function ComparisonBar({ suppliers, onRemove, onClear }: Props) {
           >
             Hapus semua
           </button>
-          {suppliers.length >= 2 ? (
+          {suppliers.length >= MIN_COMPARE ? (
             <Link
               href={`/compare?ids=${suppliers.map((s) => s.id).join(",")}`}
               className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover"
@@ -71,7 +72,7 @@ export default function ComparisonBar({ suppliers, onRemove, onClear }: Props) {
               Bandingkan sekarang
             </Link>
           ) : (
-            <span className="text-xs text-ink-subtle">Pilih minimal 2 supplier</span>
+            <span className="text-xs text-ink-subtle">Pilih minimal {MIN_COMPARE} supplier</span>
           )}
         </div>
       </div>

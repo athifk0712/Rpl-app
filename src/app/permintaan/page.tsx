@@ -1,17 +1,29 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { FileText } from "lucide-react";
+import QuoteStatusActions from "@/components/quote/QuoteStatusActions";
+import { isQuoteStatus, QUOTE_STATUSES, STATUS_LABEL } from "@/lib/quote-status";
 import { listQuoteRequests } from "@/server/quote-service";
 import { searchSuppliers } from "@/server/supplier-service";
 import { formatRupiah } from "@/lib/utils";
+import type { QuoteStatus } from "@/types";
+
+const STATUS_CLASS: Record<QuoteStatus, string> = {
+  BARU: "bg-blue-100 text-blue-700",
+  DIBALAS: "bg-amber-100 text-amber-800",
+  DITERIMA: "bg-green-100 text-green-700",
+  DITOLAK: "bg-red-100 text-red-700",
+  DIBATALKAN: "bg-gray-200 text-gray-700",
+};
 
 const dateFormat = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" });
 
 export default async function QuoteRequestsPage({ searchParams }: PageProps<"/permintaan">) {
   await connection();
-  const { supplier } = await searchParams;
+  const { supplier, status: statusParam } = await searchParams;
   const supplierId = typeof supplier === "string" && supplier ? supplier : undefined;
-  const [quotes, suppliers] = await Promise.all([listQuoteRequests(supplierId), searchSuppliers()]);
+  const status = isQuoteStatus(statusParam) ? statusParam : undefined;
+  const [quotes, suppliers] = await Promise.all([listQuoteRequests({ supplierId, status }), searchSuppliers()]);
   const activeSupplier = suppliers.find((s) => s.id === supplierId);
 
   return (
@@ -24,8 +36,8 @@ export default async function QuoteRequestsPage({ searchParams }: PageProps<"/pe
             Riwayat permintaan penawaran harga yang dikirim ke supplier, terbaru di atas.
           </p>
 
-          <form className="mt-6 flex max-w-md items-end gap-3">
-            <div className="flex-1">
+          <form className="mt-6 flex max-w-2xl flex-wrap items-end gap-3">
+            <div className="min-w-48 flex-1">
               <label htmlFor="supplier" className="mb-1 block text-sm font-medium text-ink">Filter supplier</label>
               <select
                 id="supplier"
@@ -36,6 +48,20 @@ export default async function QuoteRequestsPage({ searchParams }: PageProps<"/pe
                 <option value="">Semua supplier</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-40">
+              <label htmlFor="status" className="mb-1 block text-sm font-medium text-ink">Status</label>
+              <select
+                id="status"
+                name="status"
+                defaultValue={status ?? ""}
+                className="h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink"
+              >
+                <option value="">Semua status</option>
+                {QUOTE_STATUSES.map((s) => (
+                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
                 ))}
               </select>
             </div>
@@ -50,6 +76,7 @@ export default async function QuoteRequestsPage({ searchParams }: PageProps<"/pe
         <p className="text-sm text-ink-muted">
           <span className="font-semibold tabular-nums text-ink">{quotes.length}</span> permintaan
           {activeSupplier && <> untuk <span className="font-semibold text-ink">{activeSupplier.name}</span></>}
+          {status && <> berstatus <span className="font-semibold text-ink">{STATUS_LABEL[status]}</span></>}
         </p>
 
         {quotes.length === 0 ? (
@@ -57,7 +84,9 @@ export default async function QuoteRequestsPage({ searchParams }: PageProps<"/pe
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-muted text-ink-subtle">
               <FileText className="h-6 w-6" aria-hidden="true" />
             </span>
-            <h2 className="mt-4 text-lg font-bold tracking-tight text-ink">Belum ada permintaan penawaran</h2>
+            <h2 className="mt-4 text-lg font-bold tracking-tight text-ink">
+              {supplierId || status ? "Tidak ada permintaan yang cocok dengan filter" : "Belum ada permintaan penawaran"}
+            </h2>
             <p className="mt-1 max-w-sm text-sm text-ink-muted">
               Buka halaman detail supplier lalu isi formulir “Minta Penawaran Harga”.
             </p>
@@ -70,7 +99,7 @@ export default async function QuoteRequestsPage({ searchParams }: PageProps<"/pe
           </div>
         ) : (
           <div className="mt-6 overflow-x-auto rounded-xl border border-line bg-surface">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="border-b border-line bg-surface-muted text-xs font-semibold uppercase tracking-wide text-ink-subtle">
                 <tr>
                   <th scope="col" className="px-4 py-3">No. referensi</th>
@@ -103,11 +132,21 @@ export default async function QuoteRequestsPage({ searchParams }: PageProps<"/pe
                       {q.contactName} · {q.phone}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-ink">{q.quantity} {q.unit}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-ink">
-                      {formatRupiah(q.estimatedTotal)}
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-ink">
+                      <span className="font-semibold">{formatRupiah(q.estimatedTotal)}</span>
+                      {q.offeredTotal !== null && (
+                        <p className="mt-1 text-xs text-amber-800">
+                          Penawaran: {formatRupiah(q.offeredTotal)}
+                          <br />({formatRupiah(q.offeredPrice!)}/{q.unit})
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{q.status}</span>
+                      <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_CLASS[q.status]}`}>
+                        {STATUS_LABEL[q.status]}
+                      </span>
+                      {q.replyNote && <p className="mt-2 max-w-[14rem] text-xs text-ink-subtle">Balasan: “{q.replyNote}”</p>}
+                      <QuoteStatusActions quote={q} />
                     </td>
                   </tr>
                 ))}

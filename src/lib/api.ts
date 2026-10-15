@@ -3,6 +3,7 @@ import type {
   QuoteFieldErrors,
   QuoteRequest,
   QuoteRequestInput,
+  QuoteStatusUpdate,
   QuoteValidationError,
   SupplierListResponse,
   SupplierSearchParams,
@@ -40,5 +41,23 @@ export async function submitQuoteRequest(input: QuoteRequestInput): Promise<Subm
     return { ok: false, error: err.error ?? "Gagal mengirim permintaan.", fields: err.fields ?? {} };
   } catch {
     return { ok: false, error: "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.", fields: {} };
+  }
+}
+
+export async function changeQuoteStatus(
+  id: number,
+  update: QuoteStatusUpdate
+): Promise<{ ok: true; quote: QuoteRequest } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`/api/quote-requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(update),
+    });
+    const body = await res.json();
+    if (res.ok) return { ok: true, quote: body as QuoteRequest };
+    return { ok: false, error: (body as ApiError).error ?? "Gagal mengubah status permintaan." };
+  } catch {
+    return { ok: false, error: "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi." };
   }
 }

@@ -4,7 +4,9 @@ import {
   MapPin, Star, ShieldCheck, Phone, Mail, MessageCircle,
   Clock, Package, Truck, ChevronLeft, GitCompare, AlertTriangle, CheckCircle2, FileText
 } from "lucide-react";
+import CostEstimator from "@/components/supplier/CostEstimator";
 import QuoteRequestForm from "@/components/supplier/QuoteRequestForm";
+import { finalPrice } from "@/lib/pricing";
 import { connection } from "next/server";
 import { getSupplierById } from "@/server/supplier-service";
 import { formatRupiah, getStockBadgeClass, getStockLabel } from "@/lib/utils";
@@ -89,7 +91,6 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             <div className="space-y-3">
               {supplier.products.map((sp) => {
                 const { product } = sp;
-                const finalPrice = sp.discount ? sp.pricePerUnit * (1 - sp.discount / 100) : sp.pricePerUnit;
                 return (
                   <div key={sp.productId} className="flex items-center gap-4 p-3 border border-gray-100 rounded-xl hover:border-blue-200 transition-colors">
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -101,7 +102,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="font-bold text-gray-900 text-sm">
-                        {formatRupiah(finalPrice)}<span className="text-xs font-normal text-gray-500">/{product.unit}</span>
+                        {formatRupiah(finalPrice(sp))}<span className="text-xs font-normal text-gray-500">/{product.unit}</span>
                       </div>
                       {sp.discount && (
                         <div className="flex items-center gap-1 justify-end">
@@ -146,6 +147,15 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
               </div>
             )}
           </div>
+
+          {/* Cost estimate */}
+          <section id="estimasi" className="bg-white rounded-2xl border border-gray-200 p-6 scroll-mt-20">
+            <h2 className="text-lg font-bold text-gray-900">Estimasi Biaya Pembelian</h2>
+            <p className="mt-1 mb-5 text-sm text-gray-600">
+              Hitung harga setelah diskon ditambah ongkos kirim, sekaligus cek syarat minimum order supplier.
+            </p>
+            <CostEstimator supplier={supplier} />
+          </section>
 
           {/* Quote request */}
           <section id="penawaran" className="bg-white rounded-2xl border border-gray-200 p-6 scroll-mt-20">

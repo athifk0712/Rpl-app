@@ -89,8 +89,13 @@ model QuoteRequest {
   quantity     Int
   unitPrice    Int
   note         String?
+  // BARU | DIBALAS | DITERIMA | DITOLAK | DIBATALKAN (aturan perpindahan: src/lib/quote-status.ts)
   status       String   @default("BARU")
+  // Harga per unit yang ditawarkan supplier saat membalas, beserta pesannya.
+  offeredPrice Int?
+  replyNote    String?
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
   supplier     Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   product      Product  @relation(fields: [productId], references: [id])
 

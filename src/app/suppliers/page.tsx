@@ -7,6 +7,7 @@ import SearchBar from "@/components/search/SearchBar";
 import SupplierCard from "@/components/supplier/SupplierCard";
 import ComparisonBar from "@/components/supplier/ComparisonBar";
 import { fetchSuppliers } from "@/lib/api";
+import { toggleCompare } from "@/lib/compare";
 import type { SortOption, Supplier } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -219,12 +220,11 @@ function SuppliersRoute() {
   const [compared, setCompared] = useState<Supplier[]>([]);
   const compareList = compared.map((s) => s.id);
 
-  const toggleCompare = (supplier: Supplier) => {
-    setCompared((prev) =>
-      prev.some((s) => s.id === supplier.id)
-        ? prev.filter((s) => s.id !== supplier.id)
-        : prev.length < 3 ? [...prev, supplier] : prev
-    );
+  const onToggleCompare = (supplier: Supplier) => {
+    setCompared((prev) => {
+      const ids = toggleCompare(prev.map((s) => s.id), supplier.id);
+      return ids.map((id) => prev.find((s) => s.id === id) ?? supplier);
+    });
   };
 
   return (
@@ -234,7 +234,7 @@ function SuppliersRoute() {
         key={`${query}|${category}`}
         initialFilters={{ ...EMPTY_FILTERS, query, category }}
         compareList={compareList}
-        onToggleCompare={toggleCompare}
+        onToggleCompare={onToggleCompare}
       />
       <ComparisonBar
         suppliers={compared}

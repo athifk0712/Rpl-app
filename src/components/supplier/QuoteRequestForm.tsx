@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Send } from "lucide-react";
 import { submitQuoteRequest } from "@/lib/api";
+import { finalPrice } from "@/lib/pricing";
 import { formatRupiah } from "@/lib/utils";
 import type { QuoteField, QuoteFieldErrors, QuoteRequest, SupplierProduct } from "@/types";
 
@@ -18,10 +19,6 @@ type FormField = keyof typeof EMPTY_FORM;
 
 const inputClass =
   "w-full rounded-xl border px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500";
-
-function finalPrice(offer: SupplierProduct) {
-  return Math.round(offer.pricePerUnit * (1 - (offer.discount ?? 0) / 100));
-}
 
 // Validasi utama ada di server; form hanya menampilkan pesan error per field dari respons API.
 export default function QuoteRequestForm({ supplierId, offers }: Props) {

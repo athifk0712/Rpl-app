@@ -1,5 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
-import type { QuoteFieldErrors, QuoteRequest, QuoteRequestInput, SupplierProduct } from "@/types";
+import { finalPrice } from "@/lib/pricing";
+import { isQuoteStatus, validateStatusChange } from "@/lib/quote-status";
+import type { QuoteFieldErrors, QuoteRequest, QuoteRequestInput, QuoteStatus } from "@/types";
 import { prisma } from "./db";
 
 const PHONE_PATTERN = /^(\+62|62|0)8\d{7,12}$/;
@@ -11,10 +13,6 @@ const QUOTE_INCLUDE = {
 } satisfies Prisma.QuoteRequestInclude;
 
 type QuoteRow = Prisma.QuoteRequestGetPayload<{ include: typeof QUOTE_INCLUDE }>;
-
-export function finalPrice(offer: Pick<SupplierProduct, "pricePerUnit" | "discount">): number {
-  return Math.round(offer.pricePerUnit * (1 - (offer.discount ?? 0) / 100));
-}
 
 export function formatQuoteCode(id: number): string {
   return `RFQ-${String(id).padStart(5, "0")}`;
@@ -98,23 +96,59 @@ export async function createQuoteRequest(body: unknown): Promise<CreateResult> {
   return { ok: true, quote: toQuote(row) };
 }
 
-function toQuote({ supplier, product, createdAt, ...row }: QuoteRow): QuoteRequest {
+function toQuote({ supplier, product, createdAt, updatedAt, status, ...row }: QuoteRow): QuoteRequest {
   return {
     ...row,
     code: formatQuoteCode(row.id),
+    status: (isQuoteStatus(status) ? status : "BARU") as QuoteStatus,
     supplierName: supplier.name,
     productName: product.name,
     unit: product.unit,
     estimatedTotal: row.unitPrice * row.quantity,
+    offeredTotal: row.offeredPrice === null ? null : row.offeredPrice * row.quantity,
     createdAt: createdAt.toISOString(),
+    updatedAt: updatedAt.toISOString(),
   };
 }
 
-export async function listQuoteRequests(supplierId?: string): Promise<QuoteRequest[]> {
+export interface QuoteFilter {
+  supplierId?: string;
+  status?: QuoteStatus;
+}
+
+export async function listQuoteRequests({ supplierId, status }: QuoteFilter = {}): Promise<QuoteRequest[]> {
   const rows = await prisma.quoteRequest.findMany({
-    where: supplierId ? { supplierId } : undefined,
+    where: { ...(supplierId && { supplierId }), ...(status && { status }) },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: QUOTE_INCLUDE,
   });
   return rows.map(toQuote);
+}
+
+export async function getQuoteRequest(id: number): Promise<QuoteRequest | null> {
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const row = await prisma.quoteRequest.findUnique({ where: { id }, include: QUOTE_INCLUDE });
+  return row ? toQuote(row) : null;
+}
+
+type UpdateResult = { ok: true; quote: QuoteRequest } | { ok: false; status: 400 | 404 | 409; error: string; field?: string };
+
+// Ubah status RFQ sesuai alur di src/lib/quote-status.ts. Perubahan yang tidak sesuai alur → 409.
+export async function updateQuoteStatus(id: number, body: unknown): Promise<UpdateResult> {
+  const current = await getQuoteRequest(id);
+  if (!current) return { ok: false, status: 404, error: "Permintaan penawaran tidak ditemukan." };
+
+  const change = validateStatusChange(current.status, body);
+  if (!change.ok) return { ok: false, status: change.conflict ? 409 : 400, error: change.error, field: change.field };
+
+  // Syarat status lama ikut di WHERE agar dua perubahan bersamaan tidak saling menimpa.
+  const { count } = await prisma.quoteRequest.updateMany({
+    where: { id, status: current.status },
+    data: {
+      status: change.status,
+      ...(change.offeredPrice !== undefined && { offeredPrice: change.offeredPrice, replyNote: change.replyNote }),
+    },
+  });
+  if (count === 0) return { ok: false, status: 409, error: "Status permintaan baru saja berubah. Muat ulang halaman." };
+  return { ok: true, quote: (await getQuoteRequest(id))! };
 }

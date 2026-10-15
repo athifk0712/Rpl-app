@@ -1,10 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isQuoteStatus, QUOTE_STATUSES } from "@/lib/quote-status";
 import { createQuoteRequest, listQuoteRequests } from "@/server/quote-service";
 import type { ApiError, QuoteRequest, QuoteValidationError } from "@/types";
 
 export async function GET(request: NextRequest) {
-  const supplierId = request.nextUrl.searchParams.get("supplierId") ?? undefined;
-  const quotes = await listQuoteRequests(supplierId);
+  const params = request.nextUrl.searchParams;
+  const supplierId = params.get("supplierId") || undefined;
+  const status = params.get("status") || undefined;
+  if (status !== undefined && !isQuoteStatus(status)) {
+    return NextResponse.json<ApiError>(
+      { error: `Parameter status tidak valid. Gunakan salah satu: ${QUOTE_STATUSES.join(", ")}.` },
+      { status: 400 }
+    );
+  }
+  const quotes = await listQuoteRequests({ supplierId, status });
   return NextResponse.json<{ total: number; quotes: QuoteRequest[] }>({ total: quotes.length, quotes });
 }
 
