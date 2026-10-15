@@ -1,0 +1,37 @@
+ RUN  v5.0.3 C:/Users/athif/Rpl-app
+ ✓ tests/quote-status.test.ts > US5 — memantau & memperbarui status permintaan penawaran > AC1: alur status BARU → DIBALAS → DITERIMA/DITOLAK, dan pembatalan sebelum status akhir 3ms
+ ✓ tests/quote-status.test.ts > US5 — memantau & memperbarui status permintaan penawaran > AC2: membalas wajib menyertakan harga penawaran bilangan bulat > 0; pesan maks. 500 karakter 0ms
+ ✓ tests/quote-status.test.ts > US5 — memantau & memperbarui status permintaan penawaran > AC3: PATCH membalas permintaan menyimpan harga penawaran dan menghitung total penawaran 140ms
+ ✓ tests/quote-status.test.ts > US5 — memantau & memperbarui status permintaan penawaran > AC4: perubahan yang melanggar alur ditolak 409 dan status di database tidak berubah 15ms
+ ✓ tests/quote-status.test.ts > US5 — memantau & memperbarui status permintaan penawaran > AC5: id tidak ada → 404, data tidak valid → 400, body bukan JSON → 400 10ms
+ ✓ tests/quote-status.test.ts > US5 — memantau & memperbarui status permintaan penawaran > AC6: daftar permintaan bisa difilter per status; status tidak dikenal → 400 17ms
+ ✓ tests/supplier-search.test.ts > US1 — mencari & memfilter supplier dari database > AC1: tanpa filter mengembalikan semua supplier hasil seed beserta produknya 120ms
+ ✓ tests/supplier-search.test.ts > US1 — mencari & memfilter supplier dari database > AC2: kata kunci cocok dengan nama supplier, nama produk, atau kategori (tidak peka huruf besar) 28ms
+ ✓ tests/supplier-search.test.ts > US1 — mencari & memfilter supplier dari database > AC3: filter kategori, provinsi, dan harga maksimum digabung (AND) 23ms
+ ✓ tests/supplier-search.test.ts > US1 — mencari & memfilter supplier dari database > AC4: hasil diurutkan sesuai parameter sort 9ms
+ ✓ tests/supplier-search.test.ts > US1 — mencari & memfilter supplier dari database > AC5: GET /api/suppliers mengembalikan JSON dan memvalidasi parameter 14ms
+ ✓ tests/supplier-search.test.ts > US1 — mencari & memfilter supplier dari database > AC6: GET /api/suppliers/:id mengembalikan detail, 404 jika tidak ada 7ms
+ ✓ tests/quote-request.test.ts > US4 — mengirim permintaan penawaran (RFQ) > AC1: data valid tersimpan (201) dengan nomor referensi dan estimasi dari harga setelah diskon 35ms
+ ✓ tests/quote-request.test.ts > US4 — mengirim permintaan penawaran (RFQ) > AC2: field wajib dan format nomor WhatsApp divalidasi dengan pesan per field 2ms
+ ✓ tests/quote-request.test.ts > US4 — mengirim permintaan penawaran (RFQ) > AC3: jumlah di bawah minimum order ditolak 2ms
+ ✓ tests/quote-request.test.ts > US4 — mengirim permintaan penawaran (RFQ) > AC4: produk yang tidak dijual supplier atau stoknya habis ditolak 4ms
+ ✓ tests/quote-request.test.ts > US4 — mengirim permintaan penawaran (RFQ) > AC5: supplier yang tidak ada → 404, body bukan JSON → 400 1ms
+ ✓ tests/quote-request.test.ts > US4 — mengirim permintaan penawaran (RFQ) > AC6: daftar permintaan terbaru di atas dan bisa difilter per supplier 16ms
+ ✓ tests/cost-estimate.test.ts > US3 — estimasi biaya pembelian > AC1: subtotal memakai harga setelah diskon dan menampilkan besar penghematan 2ms
+ ✓ tests/cost-estimate.test.ts > US3 — estimasi biaya pembelian > AC2: total = subtotal + ongkos kirim zona tujuan; tanpa zona berarti tanpa ongkir 1ms
+ ✓ tests/cost-estimate.test.ts > US3 — estimasi biaya pembelian > AC3: jumlah di bawah minimum order produk diberi peringatan 1ms
+ ✓ tests/cost-estimate.test.ts > US3 — estimasi biaya pembelian > AC4: subtotal di bawah minimum belanja supplier diberi peringatan, tepat di batas lolos 22ms
+ ✓ tests/cost-estimate.test.ts > US3 — estimasi biaya pembelian > AC5: zona yang tidak dilayani supplier dan stok habis ditandai 1ms
+ ✓ tests/cost-estimate.test.ts > US3 — estimasi biaya pembelian > AC6: jumlah kosong, nol, negatif, atau pecahan tidak dihitung 1ms
+ ✓ tests/compare.test.ts > US2 — membandingkan supplier > AC1: maksimal 3 supplier; id kosong, duplikat, dan tidak dikenal di URL diabaikan 4ms
+ ✓ tests/compare.test.ts > US2 — membandingkan supplier > AC2: menambah supplier ke daftar penuh tidak berpengaruh, menekan lagi menghapusnya 0ms
+ ✓ tests/compare.test.ts > US2 — membandingkan supplier > AC3: harga dibandingkan setelah diskon (harga akhir = harga × (1 − diskon%), dibulatkan) 1ms
+ ✓ tests/compare.test.ts > US2 — membandingkan supplier > AC4: 'terbaik' hanya ditandai jika ≥2 supplier punya nilai dan nilainya tidak sama semua 0ms
+ ✓ tests/compare.test.ts > US2 — membandingkan supplier > AC5: supplier yang tidak menjual produk atau stoknya habis tidak dinilai untuk harga produk 0ms
+ ✓ tests/compare.test.ts > US2 — membandingkan supplier > AC6: rating & ulasan tertinggi, minimum belanja terendah; produk diurutkan dari yang paling banyak dijual 0ms
+ Test Files  5 passed (5)
+      Tests  30 passed (30)
+   Start at  15:23:58
+   Duration  7.03s (transform 38%, tests 33%, import 27%, worker 1%)
+    Isolate  5 workers spawned · ~148ms startup each (spawn + environment, per file)
+             at least ~593ms faster with isolate: false — reuses workers across files instead of one per file

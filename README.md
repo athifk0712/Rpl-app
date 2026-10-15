@@ -12,12 +12,19 @@ Judul proyek RPL: **Platform Pencarian dan Perbandingan Supplier Bahan Baku bagi
 * Prisma 7 + SQLite (driver adapter `better-sqlite3`)
 * Vitest untuk acceptance test
 
-## Fitur MVP v1
+## Fitur MVP
 
-| Fitur | Halaman | API |
-| ----- | ------- | --- |
-| 1. Pencarian & filter supplier dari database | `/suppliers`, `/suppliers/[id]`, `/`, `/compare` | `GET /api/suppliers`, `GET /api/suppliers/:id` |
-| 2. Permintaan penawaran (RFQ) | form di `/suppliers/[id]`, `/permintaan` | `POST /api/quote-requests`, `GET /api/quote-requests` |
+Alur pengadaan UMKM: **cari → bandingkan → estimasi biaya → minta penawaran → pantau status**.
+
+| User story | Halaman | API / modul | Unit test |
+| ---------- | ------- | ----------- | --------- |
+| US1. Mencari & memfilter supplier | `/`, `/suppliers`, `/suppliers/[id]` | `GET /api/suppliers`, `GET /api/suppliers/:id` | `tests/supplier-search.test.ts` |
+| US2. Membandingkan supplier (maks. 3) | `/compare?ids=` | `src/lib/compare.ts` | `tests/compare.test.ts` |
+| US3. Estimasi biaya pembelian + ongkir | `/suppliers/[id]` | `src/lib/cost-estimate.ts` | `tests/cost-estimate.test.ts` |
+| US4. Permintaan penawaran (RFQ) | form di `/suppliers/[id]` | `POST /api/quote-requests` | `tests/quote-request.test.ts` |
+| US5. Status RFQ (balas, terima, tolak, batal) | `/permintaan` | `GET/PATCH /api/quote-requests/:id` | `tests/quote-status.test.ts` |
+
+Detail acceptance criteria dan status pengujian: [checklist_mvp.md](checklist_mvp.md).
 
 ## Menjalankan
 
@@ -33,7 +40,7 @@ npm run dev                 # http://localhost:3000
 Perintah lain:
 
 ```bash
-npm test                    # 12 acceptance test (memakai prisma/test.db terpisah)
+npm test                    # 30 unit test di 5 file (memakai prisma/test.db terpisah)
 npm run lint
 npm run build && npm start  # build & jalankan mode produksi
 npm run db:seed             # reset isi database ke data contoh
@@ -45,6 +52,10 @@ npx prisma studio           # lihat isi database di browser
 > Dev server menyimpan instance PrismaClient lama sehingga model baru belum dikenali.
 
 ## Dokumentasi
+
+* [HowToRun.md](HowToRun.md) — petunjuk lengkap menjalankan aplikasi, test, dan skenario demo
+* [checklist_mvp.md](checklist_mvp.md) — checklist fitur MVP + status unit test
+* [demo.mp4](demo.mp4) — video demo alur lengkap
 
 * [ARCHITECTURE.md](ARCHITECTURE.md) — arsitektur, model data, API, alur data
 * [docs/LAPORAN-P5.md](docs/LAPORAN-P5.md) — proses Brief → Plan → Build → Verify → Commit per fitur

@@ -138,7 +138,10 @@ erDiagram
     int unitPrice
     string note
     string status
-    datetime createdAt }
+    int offeredPrice
+    string replyNote
+    datetime createdAt
+    datetime updatedAt }
 ```
 
 Catatan desain:
@@ -148,7 +151,8 @@ Catatan desain:
 * Daftar kategori, opsi kirim, dan ongkir per zona dinormalisasi ke tabel sendiri karena SQLite tidak punya tipe array.
 * `QuoteRequest.unitPrice` adalah **snapshot** harga setelah diskon saat permintaan dibuat,
   supaya estimasi total tidak berubah jika supplier mengubah harga.
-* `stock` bernilai `tersedia` | `terbatas` | `habis`; `status` RFQ saat ini selalu `BARU`.
+* `stock` bernilai `tersedia` | `terbatas` | `habis`; `status` RFQ: `BARU` | `DIBALAS` | `DITERIMA` | `DITOLAK` | `DIBATALKAN`.
+* `QuoteRequest.offeredPrice` dan `replyNote` diisi saat supplier membalas.
 
 Data contoh (seed): 8 kategori, 22 produk, 10 supplier.
 
@@ -159,7 +163,9 @@ Data contoh (seed): 8 kategori, 22 produk, 10 supplier.
 | GET | `/api/suppliers?query=&category=&province=&maxPrice=&sort=` | Cari & filter supplier | 200 `{ total, suppliers }`, 400 parameter tidak valid |
 | GET | `/api/suppliers/:id` | Detail supplier + produk | 200 `Supplier`, 404 |
 | POST | `/api/quote-requests` | Buat permintaan penawaran | 201 `QuoteRequest`, 400 `{ error, fields }`, 404 supplier tidak ada |
-| GET | `/api/quote-requests?supplierId=` | Daftar permintaan, terbaru di atas | 200 `{ total, quotes }` |
+| GET | `/api/quote-requests?supplierId=&status=` | Daftar permintaan, terbaru di atas | 200 `{ total, quotes }`, 400 status tidak dikenal |
+| GET | `/api/quote-requests/:id` | Detail permintaan | 200 `QuoteRequest`, 404 |
+| PATCH | `/api/quote-requests/:id` | Ubah status `{ status, offeredPrice?, replyNote? }` | 200, 400 data tidak valid, 404, 409 perpindahan status terlarang |
 
 `sort`: `rating` (default) | `review` | `price_asc` | `price_desc` (berdasarkan minimum order supplier).
 
@@ -206,6 +212,21 @@ Contoh body `POST /api/quote-requests`:
 | Catatan maks. 500 karakter | "Catatan maksimal 500 karakter." |
 
 Nomor referensi: `RFQ-` + id 5 digit (contoh `RFQ-00001`). Estimasi total = `unitPrice × quantity`.
+
+**Estimasi biaya (US3)** — `src/lib/cost-estimate.ts`
+
+* Total = harga setelah diskon × jumlah + ongkir zona (tanpa zona = ambil sendiri, tanpa ongkir).
+* Peringatan bila: jumlah < minimum order produk, subtotal < minimum belanja supplier, zona tidak dilayani, stok habis.
+
+**Status RFQ (US5)** — `src/lib/quote-status.ts`
+
+```text
+BARU ──balas (harga wajib)──▶ DIBALAS ──▶ DITERIMA | DITOLAK
+BARU / DIBALAS ──────────────▶ DIBATALKAN
+```
+
+`DITERIMA`, `DITOLAK`, `DIBATALKAN` adalah status akhir. Perpindahan lain ditolak 409.
+Update memakai `WHERE id AND status = <status lama>` agar dua perubahan bersamaan tidak saling menimpa.
 
 ## 8. Alur Data
 
@@ -311,7 +332,7 @@ Rpl-app/
 ## 11. Batasan MVP v1
 
 * Belum ada login (UMKM/supplier/admin); halaman `/permintaan` menampilkan semua permintaan.
-* Status RFQ belum bisa diubah (selalu `BARU`); supplier belum bisa membalas di aplikasi.
+* Belum ada login, jadi aksi supplier (balas) dan UMKM (terima/tolak/batal) ada di halaman yang sama.
 * Data supplier dan produk hanya bisa diubah lewat seed / Prisma Studio.
 * SQLite cocok untuk satu server; untuk produksi multi-instance gunakan PostgreSQL.
 
