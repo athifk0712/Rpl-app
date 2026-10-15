@@ -30,7 +30,7 @@ function request(path: string) {
   return new NextRequest(new URL(path, "http://localhost"));
 }
 
-describe("Fitur 1 — pencarian supplier dari database", () => {
+describe("US1 — mencari & memfilter supplier dari database", () => {
   it("AC1: tanpa filter mengembalikan semua supplier hasil seed beserta produknya", async () => {
     const result = await searchSuppliers();
     expect(result).toHaveLength(SUPPLIERS.length);

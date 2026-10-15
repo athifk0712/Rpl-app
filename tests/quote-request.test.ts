@@ -39,7 +39,7 @@ beforeAll(async () => {
   });
 });
 
-describe("Fitur 2 — permintaan penawaran (RFQ)", () => {
+describe("US4 — mengirim permintaan penawaran (RFQ)", () => {
   it("AC1: data valid tersimpan (201) dengan nomor referensi dan estimasi dari harga setelah diskon", async () => {
     const res = await post(VALID);
     expect(res.status).toBe(201);
