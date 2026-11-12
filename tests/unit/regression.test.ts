@@ -8,6 +8,7 @@ import sitemap from "@/app/sitemap";
 import { siteUrl } from "@/lib/site";
 import { GET as health } from "@/app/api/health/route";
 import { prisma } from "@/server/db";
+import { currentYear } from "@/lib/utils";
 import { POST } from "@/app/api/quote-requests/route";
 import { PATCH } from "@/app/api/quote-requests/[id]/route";
 import { changeQuoteStatus, fetchSuppliers, readJson, submitQuoteRequest } from "@/lib/api";
@@ -236,5 +237,23 @@ describe("#10 — endpoint health check", () => {
     const body = JSON.stringify(await res.json());
     expect(body).toContain("unreachable");
     expect(body).not.toContain("password");
+  });
+});
+
+describe("#11 — tahun copyright mengikuti tahun berjalan", () => {
+  it.each([
+    ["2026-11-12T05:00:00Z", 2026],
+    ["2027-06-01T00:00:00Z", 2027],
+    // 31 Des 18:00 UTC sudah 1 Jan 01:00 WIB.
+    ["2026-12-31T18:00:00Z", 2027],
+    ["2026-12-31T16:00:00Z", 2026],
+  ])("%s → %d", (iso, year) => {
+    expect(currentYear(new Date(iso))).toBe(year);
+  });
+
+  it("footer tidak lagi menulis tahun 2024 secara tetap", () => {
+    const footer = readFileSync("src/components/layout/Footer.tsx", "utf8");
+    expect(footer).not.toContain("© 2024");
+    expect(footer).toContain("currentYear()");
   });
 });

@@ -1,5 +1,6 @@
 import { Store, Mail, Phone } from "lucide-react";
 import Link from "next/link";
+import { currentYear } from "@/lib/utils";
 
 const FEATURE_LINKS = [
   { href: "/suppliers", label: "Cari Supplier" },
@@ -56,7 +57,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 border-t border-primary-soft pt-6 text-xs">
-          © 2024 SupplierHub. Dibuat untuk membantu UMKM Indonesia berkembang.
+          © {currentYear()} SupplierHub. Dibuat untuk membantu UMKM Indonesia berkembang.
         </div>
       </div>
     </footer>
