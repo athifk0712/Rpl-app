@@ -46,3 +46,5 @@ Thumbs.db
 
 # hasil unit test
 test-results.json
+
+.vercel
