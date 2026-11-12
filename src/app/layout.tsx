@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { ROOT_METADATA } from "@/lib/metadata";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -10,10 +11,7 @@ const jakarta = Plus_Jakarta_Sans({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "SupplierHub — Platform Supplier UMKM Indonesia",
-  description: "Temukan, bandingkan, dan hubungi supplier bahan baku terpercaya untuk UMKM Indonesia.",
-};
+export const metadata: Metadata = ROOT_METADATA;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

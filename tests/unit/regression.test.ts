@@ -9,6 +9,10 @@ import { siteUrl } from "@/lib/site";
 import { GET as health } from "@/app/api/health/route";
 import { prisma } from "@/server/db";
 import { currentYear } from "@/lib/utils";
+import { ROOT_METADATA as rootMetadata } from "@/lib/metadata";
+import { generateMetadata as supplierMetadata } from "@/app/suppliers/[id]/page";
+
+const SUPPLIER_IDS = ["s01", "s04", "s10"];
 import { POST } from "@/app/api/quote-requests/route";
 import { PATCH } from "@/app/api/quote-requests/[id]/route";
 import { changeQuoteStatus, fetchSuppliers, readJson, submitQuoteRequest } from "@/lib/api";
@@ -255,5 +259,24 @@ describe("#11 — tahun copyright mengikuti tahun berjalan", () => {
     const footer = readFileSync("src/components/layout/Footer.tsx", "utf8");
     expect(footer).not.toContain("© 2024");
     expect(footer).toContain("currentYear()");
+  });
+});
+
+describe("#12 — metadata Open Graph untuk preview link", () => {
+  it("layout punya metadataBase absolut, template judul, dan Open Graph", () => {
+    expect(rootMetadata.metadataBase).toBeInstanceOf(URL);
+    expect(rootMetadata.title).toMatchObject({ template: "%s · SupplierHub" });
+    expect(rootMetadata.openGraph).toMatchObject({ siteName: "SupplierHub", locale: "id_ID" });
+  });
+
+  it.each(SUPPLIER_IDS)("detail supplier %s punya judul & deskripsi sendiri", async (id) => {
+    const meta = await supplierMetadata({ params: Promise.resolve({ id }) });
+    expect(typeof meta.title).toBe("string");
+    expect(meta.description).toBeTruthy();
+    expect(meta.openGraph?.title).toBe(meta.title);
+  });
+
+  it("supplier tidak ada → judul 'tidak ditemukan'", async () => {
+    expect((await supplierMetadata({ params: Promise.resolve({ id: "s99" }) })).title).toBe("Supplier tidak ditemukan");
   });
 });
