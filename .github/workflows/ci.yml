@@ -93,4 +93,5 @@ jobs:
           vercel alias set "${{ steps.deploy.outputs.url }}" "$alias" --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID
           echo "### Live untuk testing: https://$alias" >> "$GITHUB_STEP_SUMMARY"
       - name: Ringkasan deploy
-        run: echo "### Deploy ($TARGET): ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "### Deploy ($TARGET): ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
