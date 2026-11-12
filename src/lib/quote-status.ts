@@ -1,4 +1,5 @@
 import type { QuoteStatus } from "@/types";
+import { MAX_UNIT_PRICE } from "./limits";
 
 export const QUOTE_STATUSES: readonly QuoteStatus[] = ["BARU", "DIBALAS", "DITERIMA", "DITOLAK", "DIBATALKAN"];
 
@@ -54,6 +55,9 @@ export function validateStatusChange(current: QuoteStatus, body: unknown): Statu
   const offeredPrice = Number(raw.offeredPrice);
   if (!Number.isInteger(offeredPrice) || offeredPrice <= 0) {
     return { ok: false, field: "offeredPrice", error: "Harga penawaran per unit wajib diisi (bilangan bulat lebih dari 0)." };
+  }
+  if (offeredPrice > MAX_UNIT_PRICE) {
+    return { ok: false, field: "offeredPrice", error: `Harga penawaran per unit maksimal Rp${MAX_UNIT_PRICE.toLocaleString("id-ID")}.` };
   }
   const replyNote = typeof raw.replyNote === "string" ? raw.replyNote.trim() : "";
   if (replyNote.length > MAX_REPLY_LENGTH) {

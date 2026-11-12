@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { changeQuoteStatus } from "@/lib/api";
 import { TRANSITIONS } from "@/lib/quote-status";
 import type { QuoteRequest, QuoteStatus } from "@/types";
+import { MAX_UNIT_PRICE } from "@/lib/limits";
 
 const buttonClass = "rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50";
 
@@ -55,6 +56,7 @@ export default function QuoteStatusActions({ quote }: { quote: QuoteRequest }) {
           id={`offer-${quote.id}`}
           type="number"
           min={1}
+          max={MAX_UNIT_PRICE}
           value={offeredPrice}
           onChange={(e) => setOfferedPrice(e.target.value)}
           className="w-full rounded-lg border border-line-strong px-2 py-1.5 text-sm"
