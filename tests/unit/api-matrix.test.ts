@@ -72,6 +72,18 @@ describe("GET /api/suppliers — kata kunci (huruf sesuai data)", () => {
   );
 });
 
+// Regresi issue #1: di Postgres pencarian sempat peka huruf besar/kecil.
+describe("GET /api/suppliers — kata kunci tidak peka huruf besar/kecil (#1)", () => {
+  it.each(["tepung", "TEPUNG", "tEpUnG", "kain cotton", "STANDING POUCH", "bumbu & rempah", "cv", "  jahe  "])(
+    "query=%j sama dengan pencarian huruf sesuai data",
+    async (query) => {
+      const { body } = await search(`query=${encodeURIComponent(query)}`);
+      expect(ids(body.suppliers)).toEqual(expectedIds({ query }));
+      if (query.trim() !== "cv") expect(body.suppliers.length).toBeGreaterThan(0);
+    }
+  );
+});
+
 describe("GET /api/suppliers — urutan", () => {
   const sorted = (list: number[], dir: 1 | -1) => [...list].sort((a, b) => dir * (a - b));
   it.each([
