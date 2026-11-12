@@ -6,6 +6,8 @@ import nextConfig from "../../next.config";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { siteUrl } from "@/lib/site";
+import { GET as health } from "@/app/api/health/route";
+import { prisma } from "@/server/db";
 import { POST } from "@/app/api/quote-requests/route";
 import { PATCH } from "@/app/api/quote-requests/[id]/route";
 import { changeQuoteStatus, fetchSuppliers, readJson, submitQuoteRequest } from "@/lib/api";
@@ -215,5 +217,24 @@ describe("#9 — robots.txt & sitemap.xml tersedia", () => {
     [{}, "http://localhost:3000"],
   ])("siteUrl(%j) → %s", (env, expected) => {
     expect(siteUrl(env)).toBe(expected);
+  });
+});
+
+describe("#10 — endpoint health check", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("database terjangkau → 200 status ok", async () => {
+    const res = await health();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "ok", database: "ok" });
+  });
+
+  it("database gagal → 503 tanpa membocorkan detail error", async () => {
+    vi.spyOn(prisma, "$queryRaw").mockRejectedValueOnce(new Error("password authentication failed"));
+    const res = await health();
+    expect(res.status).toBe(503);
+    const body = JSON.stringify(await res.json());
+    expect(body).toContain("unreachable");
+    expect(body).not.toContain("password");
   });
 });
