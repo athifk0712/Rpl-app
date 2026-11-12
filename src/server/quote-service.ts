@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { MAX_QUANTITY } from "@/lib/limits";
 import { finalPrice } from "@/lib/pricing";
 import { isQuoteStatus, validateStatusChange } from "@/lib/quote-status";
 import type { QuoteFieldErrors, QuoteRequest, QuoteRequestInput, QuoteStatus } from "@/types";
@@ -44,6 +45,7 @@ export function parseQuoteInput(body: unknown): { input: QuoteRequestInput; erro
   else if (input.contactName.length > 100) errors.contactName = "Nama kontak maksimal 100 karakter.";
   if (!PHONE_PATTERN.test(input.phone)) errors.phone = "Nomor WhatsApp tidak valid. Contoh: 081234567890.";
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) errors.quantity = "Jumlah harus bilangan bulat lebih dari 0.";
+  else if (input.quantity > MAX_QUANTITY) errors.quantity = `Jumlah maksimal ${MAX_QUANTITY.toLocaleString("id-ID")} per permintaan.`;
   if (input.note && input.note.length > MAX_NOTE_LENGTH) errors.note = `Catatan maksimal ${MAX_NOTE_LENGTH} karakter.`;
 
   return { input, errors };
