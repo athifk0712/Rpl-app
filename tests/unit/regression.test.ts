@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
+import nextConfig from "../../next.config";
 import { POST } from "@/app/api/quote-requests/route";
 import { PATCH } from "@/app/api/quote-requests/[id]/route";
 import { changeQuoteStatus, fetchSuppliers, readJson, submitQuoteRequest } from "@/lib/api";
@@ -173,4 +174,19 @@ describe("#7 — fungsi Vercel berjalan di region yang sama dengan database", ()
   it("database Supabase juga di ap-southeast-1 (Singapura)", () => {
     expect(dbUrl).toContain("ap-southeast-1");
   });
+});
+
+describe("#8 — header X-Powered-By disembunyikan & security header dipasang", () => {
+  it("poweredByHeader dimatikan", () => {
+    expect(nextConfig.poweredByHeader).toBe(false);
+  });
+
+  it.each(["X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy", "Permissions-Policy"])(
+    "header %s berlaku untuk semua path",
+    async (key) => {
+      const rules = await nextConfig.headers!();
+      const all = rules.find((r) => r.source === "/:path*");
+      expect(all?.headers.map((h) => h.key)).toContain(key);
+    }
+  );
 });
