@@ -43,3 +43,6 @@ Thumbs.db
 
 !.env.example
 *.tsbuildinfo
+
+# hasil unit test
+test-results.json

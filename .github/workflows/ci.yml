@@ -1,0 +1,96 @@
+# Pipeline CI/CD SupplierHub
+#   push ke v1.0_dev / v1.0 / v1.1 → lint → typecheck → unit test (Postgres) → build
+#   Semua hijau  → deploy ke Vercel (v1.0 = production, branch lain = preview untuk testing)
+#   Ada yang gagal → job deploy dilewati, versi live sebelumnya tetap berjalan.
+name: CI/CD
+
+on:
+  push:
+    branches: [v1.0, v1.0_dev, v1.1]
+  pull_request:
+    branches: [v1.0, v1.1]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint, typecheck, unit test & build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: supplierhub
+          POSTGRES_PASSWORD: supplierhub
+          POSTGRES_DB: supplierhub
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U supplierhub"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://supplierhub:supplierhub@localhost:5432/supplierhub
+      DIRECT_URL: postgresql://supplierhub:supplierhub@localhost:5432/supplierhub
+      TEST_DATABASE_URL: postgresql://supplierhub:supplierhub@localhost:5432/supplierhub?schema=test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit test
+        run: npx vitest run --reporter=default --reporter=json --outputFile.json=test-results.json
+      - name: Ringkasan unit test
+        if: always()
+        run: node scripts/test-summary.mjs test-results.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results.json
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy ke Vercel
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      TARGET: ${{ github.ref_name == 'v1.0' && 'production' || 'preview' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cek secret Vercel
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::error::Secret VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID belum diatur di Settings → Secrets → Actions."
+            exit 1
+          fi
+      - run: npm install --global vercel@latest
+      - name: Ambil konfigurasi project Vercel
+        run: vercel pull --yes --environment=$TARGET --token=$VERCEL_TOKEN
+      - name: Build
+        run: vercel build ${{ github.ref_name == 'v1.0' && '--prod' || '' }} --token=$VERCEL_TOKEN
+      - name: Deploy
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt ${{ github.ref_name == 'v1.0' && '--prod' || '' }} --token=$VERCEL_TOKEN)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Alias branch testing
+        if: github.ref_name != 'v1.0'
+        run: |
+          alias="supplierhub-${GITHUB_REF_NAME//[._]/-}.vercel.app"
+          vercel alias set "${{ steps.deploy.outputs.url }}" "$alias" --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID
+          echo "### Live untuk testing: https://$alias" >> "$GITHUB_STEP_SUMMARY"
+      - name: Ringkasan deploy
+        run: echo "### Deploy ($TARGET): ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
