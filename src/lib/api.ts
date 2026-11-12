@@ -9,10 +9,24 @@ import type {
   SupplierSearchParams,
 } from "@/types";
 
+// Body JSON dari respons, atau null jika server membalas bukan JSON (mis. halaman error HTML dari platform).
+export async function readJson(res: Response): Promise<unknown> {
+  if (!res.headers.get("content-type")?.includes("application/json")) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export function serverErrorMessage(status: number): string {
+  return `Server sedang bermasalah (kode ${status}). Coba lagi beberapa saat.`;
+}
+
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal });
-  const body = await res.json();
-  if (!res.ok) throw new Error((body as ApiError).error ?? "Terjadi kesalahan saat memuat data.");
+  const body = await readJson(res);
+  if (!res.ok || body === null) throw new Error((body as ApiError | null)?.error ?? serverErrorMessage(res.status));
   return body as T;
 }
 
