@@ -1,9 +1,9 @@
 import "dotenv/config";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { createPgAdapter } from "../src/server/pg-adapter";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { CATEGORIES, PRODUCTS, SUPPLIERS } from "./seed-data";
 
-const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL! }) });
+const prisma = new PrismaClient({ adapter: createPgAdapter(process.env.DATABASE_URL!) });
 
 async function main() {
   await prisma.$transaction([

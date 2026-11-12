@@ -1,6 +1,7 @@
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
+// Migrasi butuh koneksi session (DIRECT_URL); runtime memakai DATABASE_URL lewat adapter di src/server/db.ts.
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -8,6 +9,6 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL ?? "",
   },
 });

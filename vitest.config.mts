@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
@@ -8,7 +9,9 @@ export default defineConfig({
   test: {
     environment: "node",
     globalSetup: "./tests/global-setup.ts",
-    env: { DATABASE_URL: "file:./prisma/test.db" },
+    env: { DATABASE_URL: process.env.TEST_DATABASE_URL ?? "" },
     fileParallelism: false,
+    testTimeout: 20000,
+    hookTimeout: 60000,
   },
 });
