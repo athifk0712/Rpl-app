@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import nextConfig from "../../next.config";
+import robots from "@/app/robots";
+import sitemap from "@/app/sitemap";
+import { siteUrl } from "@/lib/site";
 import { POST } from "@/app/api/quote-requests/route";
 import { PATCH } from "@/app/api/quote-requests/[id]/route";
 import { changeQuoteStatus, fetchSuppliers, readJson, submitQuoteRequest } from "@/lib/api";
@@ -189,4 +192,28 @@ describe("#8 — header X-Powered-By disembunyikan & security header dipasang", 
       expect(all?.headers.map((h) => h.key)).toContain(key);
     }
   );
+});
+
+describe("#9 — robots.txt & sitemap.xml tersedia", () => {
+  it("robots mengizinkan halaman publik, menutup /api/ dan /permintaan", () => {
+    const r = robots();
+    expect(r.rules).toMatchObject({ userAgent: "*", allow: "/", disallow: ["/api/", "/permintaan"] });
+    expect(r.sitemap).toMatch(/\/sitemap\.xml$/);
+  });
+
+  it("sitemap berisi halaman publik dengan URL absolut", () => {
+    const urls = sitemap().map((e) => e.url);
+    expect(urls).toHaveLength(3);
+    for (const url of urls) expect(url).toMatch(/^https?:\/\//);
+    expect(urls.some((u) => u.includes("/permintaan"))).toBe(false);
+  });
+
+  it.each([
+    [{ NEXT_PUBLIC_SITE_URL: "https://supplierhub.id/" }, "https://supplierhub.id"],
+    [{ VERCEL_PROJECT_PRODUCTION_URL: "supplierhub.vercel.app" }, "https://supplierhub.vercel.app"],
+    [{ NEXT_PUBLIC_SITE_URL: "https://a.id", VERCEL_PROJECT_PRODUCTION_URL: "b.vercel.app" }, "https://a.id"],
+    [{}, "http://localhost:3000"],
+  ])("siteUrl(%j) → %s", (env, expected) => {
+    expect(siteUrl(env)).toBe(expected);
+  });
 });
