@@ -7,6 +7,7 @@ import { submitQuoteRequest } from "@/lib/api";
 import { finalPrice } from "@/lib/pricing";
 import { formatRupiah } from "@/lib/utils";
 import type { QuoteField, QuoteFieldErrors, QuoteRequest, SupplierProduct } from "@/types";
+import { MAX_QUANTITY } from "@/lib/limits";
 
 interface Props {
   supplierId: string;
@@ -133,6 +134,7 @@ export default function QuoteRequestForm({ supplierId, offers }: Props) {
           type="number"
           inputMode="numeric"
           min={offer?.minOrderQty ?? 1}
+          max={MAX_QUANTITY}
           value={form.quantity}
           onChange={(e) => update("quantity", e.target.value)}
         />,

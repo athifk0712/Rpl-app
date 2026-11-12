@@ -39,3 +39,8 @@ export function renderStars(rating: number): string {
 export function cn(...classes: (string | undefined | false | null)[]): string {
   return classes.filter(Boolean).join(" ");
 }
+
+// Tahun berjalan di zona waktu Indonesia (WIB), dipakai untuk teks copyright.
+export function currentYear(now: Date = new Date()): number {
+  return Number(new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: "Asia/Jakarta" }).format(now));
+}

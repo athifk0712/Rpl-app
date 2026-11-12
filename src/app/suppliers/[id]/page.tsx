@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
@@ -10,6 +11,13 @@ import { finalPrice } from "@/lib/pricing";
 import { connection } from "next/server";
 import { getSupplierById } from "@/server/supplier-service";
 import { formatRupiah, getStockBadgeClass, getStockLabel } from "@/lib/utils";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const supplier = await getSupplierById((await params).id);
+  if (!supplier) return { title: "Supplier tidak ditemukan" };
+  const description = `${supplier.name} — ${supplier.city}, ${supplier.province}. ${supplier.description}`.slice(0, 200);
+  return { title: supplier.name, description, openGraph: { title: supplier.name, description } };
+}
 
 export default async function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();

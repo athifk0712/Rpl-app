@@ -13,7 +13,7 @@
     "db:setup": "prisma migrate deploy && prisma db seed",
     "postinstall": "prisma generate",
     "generate": "prisma generate",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

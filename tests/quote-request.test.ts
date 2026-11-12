@@ -46,7 +46,7 @@ describe("US4 — mengirim permintaan penawaran (RFQ)", () => {
     const quote = (await res.json()) as QuoteRequest;
 
     expect(quote.code).toMatch(/^RFQ-\d{5}$/);
-    expect(quote.phone).toBe("081234567890");
+    expect(quote.phone).toBe("6281234567890");
     expect(quote.unitPrice).toBe(10080);
     expect(quote.estimatedTotal).toBe(10080 * 150);
     expect(quote.status).toBe("BARU");

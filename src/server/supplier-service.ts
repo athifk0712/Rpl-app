@@ -43,7 +43,7 @@ function toSupplier(row: SupplierRow): Supplier {
 }
 
 // Kata kunci dicocokkan ke nama supplier, nama produk, atau kategori produk.
-// SQLite LIKE (dipakai oleh `contains`) sudah tidak peka huruf besar/kecil untuk huruf latin.
+// Postgres LIKE peka huruf besar/kecil, jadi pencarian memakai mode "insensitive" (ILIKE).
 function buildWhere({ query, category, province, maxPrice }: SupplierSearchParams): Prisma.SupplierWhereInput {
   const q = query?.trim();
   return {
@@ -54,9 +54,9 @@ function buildWhere({ query, category, province, maxPrice }: SupplierSearchParam
       q
         ? {
             OR: [
-              { name: { contains: q } },
-              { products: { some: { product: { name: { contains: q } } } } },
-              { products: { some: { product: { category: { name: { contains: q } } } } } },
+              { name: { contains: q, mode: "insensitive" } },
+              { products: { some: { product: { name: { contains: q, mode: "insensitive" } } } } },
+              { products: { some: { product: { category: { name: { contains: q, mode: "insensitive" } } } } } },
             ],
           }
         : {},

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { FileText } from "lucide-react";
@@ -7,6 +8,8 @@ import { listQuoteRequests } from "@/server/quote-service";
 import { searchSuppliers } from "@/server/supplier-service";
 import { formatRupiah } from "@/lib/utils";
 import type { QuoteStatus } from "@/types";
+
+export const metadata: Metadata = { title: "Permintaan Penawaran", robots: { index: false } };
 
 const STATUS_CLASS: Record<QuoteStatus, string> = {
   BARU: "bg-blue-100 text-blue-700",
