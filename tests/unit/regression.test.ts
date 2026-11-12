@@ -1,5 +1,6 @@
 // Test regresi untuk bug yang ditemukan setelah deploy (lihat GitHub Issues). Nomor issue ada di nama describe.
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/quote-requests/route";
 import { PATCH } from "@/app/api/quote-requests/[id]/route";
@@ -158,5 +159,18 @@ describe("#6 — nomor WhatsApp disimpan dalam satu format (62…)", () => {
     const b = (await (await postQuote({ ...VALID, phone: "+6281234567890" })).json()) as QuoteRequest;
     expect(a.phone).toBe("6281234567890");
     expect(b.phone).toBe(a.phone);
+  });
+});
+
+describe("#7 — fungsi Vercel berjalan di region yang sama dengan database", () => {
+  const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { regions?: string[] };
+  const dbUrl = readFileSync(".env.example", "utf8");
+
+  it("region fungsi = sin1 (Singapura)", () => {
+    expect(vercel.regions).toEqual(["sin1"]);
+  });
+
+  it("database Supabase juga di ap-southeast-1 (Singapura)", () => {
+    expect(dbUrl).toContain("ap-southeast-1");
   });
 });
