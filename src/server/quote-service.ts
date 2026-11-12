@@ -19,6 +19,14 @@ export function formatQuoteCode(id: number): string {
   return `RFQ-${String(id).padStart(5, "0")}`;
 }
 
+// Nomor WhatsApp disimpan dalam satu format internasional (62…), sama dengan format tautan wa.me.
+// 0812…, +62812…, dan 62812… menjadi 62812…. Mengembalikan null jika nomor tidak valid.
+export function normalizePhone(raw: string): string | null {
+  const compact = raw.replace(/[\s-]/g, "");
+  if (!PHONE_PATTERN.test(compact)) return null;
+  return compact.replace(/^(\+62|62|0)/, "62");
+}
+
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -43,7 +51,9 @@ export function parseQuoteInput(body: unknown): { input: QuoteRequestInput; erro
   else if (input.businessName.length > 100) errors.businessName = "Nama usaha maksimal 100 karakter.";
   if (input.contactName.length < 2) errors.contactName = "Nama kontak wajib diisi (minimal 2 karakter).";
   else if (input.contactName.length > 100) errors.contactName = "Nama kontak maksimal 100 karakter.";
-  if (!PHONE_PATTERN.test(input.phone)) errors.phone = "Nomor WhatsApp tidak valid. Contoh: 081234567890.";
+  const phone = normalizePhone(input.phone);
+  if (phone) input.phone = phone;
+  else errors.phone = "Nomor WhatsApp tidak valid. Contoh: 081234567890.";
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) errors.quantity = "Jumlah harus bilangan bulat lebih dari 0.";
   else if (input.quantity > MAX_QUANTITY) errors.quantity = `Jumlah maksimal ${MAX_QUANTITY.toLocaleString("id-ID")} per permintaan.`;
   if (input.note && input.note.length > MAX_NOTE_LENGTH) errors.note = `Catatan maksimal ${MAX_NOTE_LENGTH} karakter.`;

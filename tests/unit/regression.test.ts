@@ -6,7 +6,7 @@ import { PATCH } from "@/app/api/quote-requests/[id]/route";
 import { changeQuoteStatus, fetchSuppliers, readJson, submitQuoteRequest } from "@/lib/api";
 import { MAX_QUANTITY, MAX_UNIT_PRICE } from "@/lib/limits";
 import { validateStatusChange } from "@/lib/quote-status";
-import { parseQuoteInput } from "@/server/quote-service";
+import { normalizePhone, parseQuoteInput } from "@/server/quote-service";
 import type { QuoteRequest } from "@/types";
 
 const VALID = {
@@ -136,5 +136,27 @@ describe("#5 — form RFQ membedakan error jaringan dan error server", () => {
   it("sukses → quote dikembalikan", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonRes(201, { id: 7, code: "RFQ-00007" })));
     expect(await submitQuoteRequest(input)).toMatchObject({ ok: true, quote: { id: 7 } });
+  });
+});
+
+describe("#6 — nomor WhatsApp disimpan dalam satu format (62…)", () => {
+  it.each([
+    ["081234567890", "6281234567890"],
+    ["0812-3456-7890", "6281234567890"],
+    ["+62 812 3456 7890", "6281234567890"],
+    ["6281234567890", "6281234567890"],
+  ])("%s → %s", (raw, expected) => {
+    expect(normalizePhone(raw)).toBe(expected);
+  });
+
+  it.each(["12345", "0712345678", ""])("%j tidak valid → null", (raw) => {
+    expect(normalizePhone(raw)).toBeNull();
+  });
+
+  it("format berbeda dari pengguna tersimpan sama di database", async () => {
+    const a = (await (await postQuote({ ...VALID, phone: "0812-3456-7890" })).json()) as QuoteRequest;
+    const b = (await (await postQuote({ ...VALID, phone: "+6281234567890" })).json()) as QuoteRequest;
+    expect(a.phone).toBe("6281234567890");
+    expect(b.phone).toBe(a.phone);
   });
 });
