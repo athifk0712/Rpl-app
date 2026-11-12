@@ -90,7 +90,11 @@ jobs:
         if: github.ref_name != 'v1.0'
         run: |
           alias="supplierhub-${GITHUB_REF_NAME//[._]/-}.vercel.app"
-          vercel alias set "${{ steps.deploy.outputs.url }}" "$alias" --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID
+          # Lewat REST API: `vercel alias` butuh akses data user yang tidak dimiliki token ber-scope team.
+          host="${{ steps.deploy.outputs.url }}"
+          curl -fsS -X POST "https://api.vercel.com/v2/deployments/${host#https://}/aliases?teamId=$VERCEL_ORG_ID" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+            -d "{\"alias\":\"$alias\"}"
           echo "### Live untuk testing: https://$alias" >> "$GITHUB_STEP_SUMMARY"
       - name: Ringkasan deploy
         run: |
