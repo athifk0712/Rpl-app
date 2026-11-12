@@ -42,36 +42,35 @@ export type SubmitQuoteResult =
   | { ok: true; quote: QuoteRequest }
   | { ok: false; error: string; fields: QuoteFieldErrors };
 
-export async function submitQuoteRequest(input: QuoteRequestInput): Promise<SubmitQuoteResult> {
+const NETWORK_ERROR = "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
+
+// Kirim JSON ke API. Gagal jaringan (fetch melempar) dibedakan dari server yang membalas error/bukan JSON.
+async function sendJson(url: string, method: "POST" | "PATCH", payload: unknown) {
+  let res: Response;
   try {
-    const res = await fetch("/api/quote-requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    const body = await res.json();
-    if (res.ok) return { ok: true, quote: body as QuoteRequest };
-    const err = body as Partial<QuoteValidationError>;
-    return { ok: false, error: err.error ?? "Gagal mengirim permintaan.", fields: err.fields ?? {} };
+    res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   } catch {
-    return { ok: false, error: "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.", fields: {} };
+    return { network: true as const };
   }
+  return { network: false as const, res, body: await readJson(res) };
+}
+
+export async function submitQuoteRequest(input: QuoteRequestInput): Promise<SubmitQuoteResult> {
+  const result = await sendJson("/api/quote-requests", "POST", input);
+  if (result.network) return { ok: false, error: NETWORK_ERROR, fields: {} };
+  const { res, body } = result;
+  if (res.ok && body) return { ok: true, quote: body as QuoteRequest };
+  const err = (body ?? {}) as Partial<QuoteValidationError>;
+  return { ok: false, error: err.error ?? serverErrorMessage(res.status), fields: err.fields ?? {} };
 }
 
 export async function changeQuoteStatus(
   id: number,
   update: QuoteStatusUpdate
 ): Promise<{ ok: true; quote: QuoteRequest } | { ok: false; error: string }> {
-  try {
-    const res = await fetch(`/api/quote-requests/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(update),
-    });
-    const body = await res.json();
-    if (res.ok) return { ok: true, quote: body as QuoteRequest };
-    return { ok: false, error: (body as ApiError).error ?? "Gagal mengubah status permintaan." };
-  } catch {
-    return { ok: false, error: "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi." };
-  }
+  const result = await sendJson(`/api/quote-requests/${id}`, "PATCH", update);
+  if (result.network) return { ok: false, error: NETWORK_ERROR };
+  const { res, body } = result;
+  if (res.ok && body) return { ok: true, quote: body as QuoteRequest };
+  return { ok: false, error: (body as ApiError | null)?.error ?? serverErrorMessage(res.status) };
 }

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/quote-requests/route";
 import { PATCH } from "@/app/api/quote-requests/[id]/route";
-import { fetchSuppliers, readJson } from "@/lib/api";
+import { changeQuoteStatus, fetchSuppliers, readJson, submitQuoteRequest } from "@/lib/api";
 import { MAX_QUANTITY, MAX_UNIT_PRICE } from "@/lib/limits";
 import { validateStatusChange } from "@/lib/quote-status";
 import { parseQuoteInput } from "@/server/quote-service";
@@ -102,5 +102,39 @@ describe("#4 — halaman cari tidak menampilkan error parsing JSON", () => {
     ["application/json; charset=utf-8", '{"a":1}', { a: 1 }],
   ])("readJson content-type %s body %s → %j", async (type, body, expected) => {
     expect(await readJson(new Response(body, { headers: { "content-type": type } }))).toEqual(expected);
+  });
+});
+
+describe("#5 — form RFQ membedakan error jaringan dan error server", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const input = { ...VALID };
+
+  it("fetch gagal (offline) → pesan koneksi", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    expect(await submitQuoteRequest(input)).toMatchObject({ ok: false, error: /terhubung/ });
+    expect(await changeQuoteStatus(1, { status: "DIBATALKAN" })).toMatchObject({ ok: false, error: /terhubung/ });
+  });
+
+  it.each([500, 502, 504])("server membalas HTML %d → pesan server bermasalah, bukan 'periksa koneksi'", async (status) => {
+    vi.stubGlobal("fetch", vi.fn(async () => html(status)));
+    const submit = await submitQuoteRequest(input);
+    const change = await changeQuoteStatus(1, { status: "DIBATALKAN" });
+    for (const r of [submit, change]) {
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.error).toContain(`kode ${status}`);
+        expect(r.error).not.toMatch(/koneksi/);
+      }
+    }
+  });
+
+  it("error validasi dari API tetap diteruskan beserta pesan per field", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonRes(400, { error: "Data belum valid.", fields: { phone: "Nomor tidak valid." } })));
+    expect(await submitQuoteRequest(input)).toEqual({ ok: false, error: "Data belum valid.", fields: { phone: "Nomor tidak valid." } });
+  });
+
+  it("sukses → quote dikembalikan", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonRes(201, { id: 7, code: "RFQ-00007" })));
+    expect(await submitQuoteRequest(input)).toMatchObject({ ok: true, quote: { id: 7 } });
   });
 });
