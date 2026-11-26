@@ -1,7 +1,9 @@
 # Cara Menjalankan SupplierHub
 
-Aplikasi web full-stack (Next.js 16 + Prisma 7 + SQLite). UI dan REST API berjalan dalam satu proses.
-**Tidak perlu Docker atau server database**: database berupa file `prisma/dev.db`.
+Aplikasi web full-stack (Next.js 16 + Prisma 7 + PostgreSQL Supabase). UI dan REST API berjalan dalam satu proses.
+**Tidak perlu Docker**: database memakai PostgreSQL terkelola di Supabase.
+
+Versi live (tanpa instalasi): <https://supplierhub-delta.vercel.app>.
 
 ## 1. Prasyarat
 
@@ -26,7 +28,9 @@ cp .env.example .env                  # macOS / Linux / Git Bash
 Copy-Item .env.example .env           # Windows PowerShell
 ```
 
-Isi `.env`: `DATABASE_URL="file:./prisma/dev.db"`
+Isi `.env` dengan connection string Supabase (Project Settings → Database → Connection pooling):
+`DATABASE_URL` (port 6543), `DIRECT_URL` (port 5432), dan `TEST_DATABASE_URL` (port 5432 + `&schema=test`).
+Contoh formatnya ada di `.env.example`.
 
 Buat database dari migrasi dan isi data contoh (8 kategori, 22 produk, 10 supplier):
 
@@ -64,8 +68,8 @@ Hasil yang diharapkan:
       Tests  30 passed (30)
 ```
 
-Test memakai database terpisah `prisma/test.db` yang dibuat ulang setiap kali `npm test` dijalankan
-(lihat `tests/global-setup.ts`), jadi data di `dev.db` tidak berubah. Daftar lengkap test ada di
+Test memakai schema database terpisah `test` (`TEST_DATABASE_URL`) yang dimigrasi dan diisi ulang setiap kali
+`npm test` dijalankan (lihat `tests/global-setup.ts`), jadi data aplikasi tidak berubah. Daftar lengkap test ada di
 [`docs/evidence/unit-test.txt`](docs/evidence/unit-test.txt) dan [`checklist_mvp.md`](checklist_mvp.md).
 
 Pemeriksaan lain:
@@ -123,4 +127,4 @@ curl "http://localhost:3000/api/quote-requests?status=DIBALAS"
 | Halaman "Terjadi kesalahan saat memuat halaman" / tabel tidak ditemukan | Database belum dibuat atau migrasi belum diterapkan | `npm run db:setup` |
 | `POST`/`PATCH` → 500 setelah `git pull` | `npm run dev` masih memakai Prisma Client lama | `npx prisma generate`, lalu restart `npm run dev` |
 | Port 3000 sudah dipakai | Ada aplikasi lain di port 3000 | `npm run dev -- -p 3001` |
-| `npm install` gagal di `better-sqlite3` | Versi Node terlalu lama | Pasang Node.js 20+ |
+| `tenant/user ... not found` atau `/api/health` → 503 | Project Supabase free tier di-*pause* setelah tidak dipakai | Supabase Dashboard → project → **Restore**, tunggu ± 2 menit |

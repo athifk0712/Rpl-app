@@ -12,11 +12,11 @@ Log lengkap: [`docs/evidence/unit-test.txt`](docs/evidence/unit-test.txt). Video
 
 | # | User story | Halaman / API | File unit test | Unit test | Uji manual (demo) |
 | - | ---------- | ------------- | -------------- | --------- | ----------------- |
-| US1 | Mencari & memfilter supplier | `/suppliers`, `GET /api/suppliers`, `GET /api/suppliers/:id` | `tests/supplier-search.test.ts` | ✅ PASSED (6/6) | ✅ |
-| US2 | Membandingkan supplier | `/compare?ids=` | `tests/compare.test.ts` | ✅ PASSED (6/6) | ✅ |
-| US3 | Estimasi biaya pembelian | `/suppliers/[id]` → *Estimasi Biaya Pembelian* | `tests/cost-estimate.test.ts` | ✅ PASSED (6/6) | ✅ |
-| US4 | Mengirim permintaan penawaran (RFQ) | form di `/suppliers/[id]`, `POST /api/quote-requests` | `tests/quote-request.test.ts` | ✅ PASSED (6/6) | ✅ |
-| US5 | Memantau & memperbarui status RFQ | `/permintaan`, `PATCH /api/quote-requests/:id` | `tests/quote-status.test.ts` | ✅ PASSED (6/6) | ✅ |
+| US1 | Mencari & memfilter supplier | `/suppliers`, `GET /api/suppliers`, `GET /api/suppliers/:id` | `tests/acceptance/supplier-search.test.ts` | ✅ PASSED (6/6) | ✅ |
+| US2 | Membandingkan supplier | `/compare?ids=` | `tests/acceptance/compare.test.ts` | ✅ PASSED (6/6) | ✅ |
+| US3 | Estimasi biaya pembelian | `/suppliers/[id]` → *Estimasi Biaya Pembelian* | `tests/acceptance/cost-estimate.test.ts` | ✅ PASSED (6/6) | ✅ |
+| US4 | Mengirim permintaan penawaran (RFQ) | form di `/suppliers/[id]`, `POST /api/quote-requests` | `tests/acceptance/quote-request.test.ts` | ✅ PASSED (6/6) | ✅ |
+| US5 | Memantau & memperbarui status RFQ | `/permintaan`, `PATCH /api/quote-requests/:id` | `tests/acceptance/quote-status.test.ts` | ✅ PASSED (6/6) | ✅ |
 | | **Total** | | **5 file** | **✅ 30/30 PASSED** | |
 
 ---
@@ -101,7 +101,7 @@ Alur status: `BARU → DIBALAS → DITERIMA / DITOLAK`, dan `BARU / DIBALAS → 
 | Cakupan | Bukti | Status |
 | ------- | ----- | ------ |
 | Seluruh fitur inti MVP selesai | 5 user story di atas | ✅ |
-| UI + logika aplikasi + database/API terintegrasi | Halaman → `src/lib` (aturan bisnis) → `src/server` (service) → Prisma → SQLite; REST API di `src/app/api` | ✅ |
+| UI + logika aplikasi + database/API terintegrasi | Halaman → `src/lib` (aturan bisnis) → `src/server` (service) → Prisma → PostgreSQL; REST API di `src/app/api` | ✅ |
 | Alur utama berjalan dari awal sampai akhir | `demo.mp4` (cari → bandingkan → estimasi → RFQ → balas → terima) dan uji `curl` ke build produksi | ✅ |
 | Input tidak valid | Validasi server + pesan per field (US4, US5), parameter API 400, peringatan estimasi (US3) | ✅ |
 | Data kosong | *Empty state* pencarian, perbandingan tanpa supplier, permintaan kosong / tidak cocok filter, supplier tanpa stok | ✅ |

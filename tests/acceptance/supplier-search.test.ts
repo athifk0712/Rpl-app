@@ -4,7 +4,7 @@ import { GET as listSuppliers } from "@/app/api/suppliers/route";
 import { GET as getSupplier } from "@/app/api/suppliers/[id]/route";
 import { searchSuppliers } from "@/server/supplier-service";
 import type { SupplierListResponse } from "@/types";
-import { PRODUCTS, SUPPLIERS } from "../prisma/seed-data";
+import { PRODUCTS, SUPPLIERS } from "../../prisma/seed-data";
 
 // Logika pencarian versi 1 (mock data) dipakai sebagai pembanding hasil dari database.
 function expectedIds(query = "", category = "", province = "", maxPrice = 0) {
