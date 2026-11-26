@@ -1,4 +1,4 @@
-# Dokumen Arsitektur — SupplierHub (MVP v1)
+# Dokumen Arsitektur — SupplierHub (v1.0)
 
 Platform pencarian, perbandingan, dan permintaan penawaran supplier bahan baku untuk UMKM.
 
@@ -9,7 +9,7 @@ beberapa supplier berdasarkan harga, minimum order, stok, lokasi, dan reputasi, 
 penawaran harga (RFQ) yang tersimpan di sistem.
 
 MVP v1 adalah aplikasi **full-stack dalam satu proyek Next.js**: halaman UI dan REST API berjalan di server
-yang sama, data disimpan di database SQLite lewat Prisma. Belum ada autentikasi; diasumsikan satu pengguna.
+yang sama, data disimpan di PostgreSQL (Supabase) lewat Prisma. Belum ada autentikasi; diasumsikan satu pengguna.
 
 ## 2. Stack Teknologi
 
@@ -20,12 +20,14 @@ yang sama, data disimpan di database SQLite lewat Prisma. Belum ada autentikasi;
 | Bahasa         | TypeScript 5                                                |
 | API            | REST, Next.js Route Handlers (`src/app/api/**/route.ts`)    |
 | ORM            | Prisma 7 (`prisma-client` generator + driver adapter)       |
-| Database       | SQLite (`prisma/dev.db`) via `@prisma/adapter-better-sqlite3` |
+| Database       | PostgreSQL (Supabase) via `@prisma/adapter-pg`              |
+| Hosting        | Vercel (region `sin1`), deploy otomatis dari GitHub Actions |
 | Testing        | Vitest (acceptance test terhadap database test terpisah)    |
 | Integrasi luar | Tautan `wa.me` (WhatsApp) dan `mailto:`                     |
 
-Alasan memilih SQLite: lingkungan pengembangan tidak memiliki Docker, dan SQLite cukup untuk MVP satu pengguna.
-Karena akses data lewat Prisma, pindah ke PostgreSQL/MySQL cukup mengganti `provider` dan driver adapter.
+Riwayat: MVP awal memakai SQLite karena laptop pengembangan tidak punya Docker. Saat deploy ke Vercel (serverless,
+filesystem tidak permanen) database dipindah ke PostgreSQL Supabase. Karena semua akses data lewat Prisma di
+`src/server/`, perpindahan itu hanya mengubah `provider`, driver adapter, dan migrasi — halaman dan API tidak berubah.
 
 ## 3. Aturan Kode
 
@@ -56,7 +58,7 @@ flowchart LR
     SVC --> DBC
   end
 
-  DB[(SQLite<br/>prisma/dev.db)]
+  DB[(PostgreSQL<br/>Supabase)]
 
   User -->|HTML| SC
   User -->|interaksi| CC
@@ -148,7 +150,7 @@ Catatan desain:
 
 * `SupplierProduct` adalah tabel relasi Supplier ↔ Product dengan primary key gabungan (`supplierId`, `productId`):
   satu supplier hanya punya satu penawaran per produk.
-* Daftar kategori, opsi kirim, dan ongkir per zona dinormalisasi ke tabel sendiri karena SQLite tidak punya tipe array.
+* Daftar kategori, opsi kirim, dan ongkir per zona dinormalisasi ke tabel sendiri (relasional, mudah difilter lewat SQL).
 * `QuoteRequest.unitPrice` adalah **snapshot** harga setelah diskon saat permintaan dibuat,
   supaya estimasi total tidak berubah jika supplier mengubah harga.
 * `stock` bernilai `tersedia` | `terbatas` | `habis`; `status` RFQ: `BARU` | `DIBALAS` | `DITERIMA` | `DITOLAK` | `DIBATALKAN`.
@@ -238,7 +240,7 @@ sequenceDiagram
   participant P as /suppliers (Client)
   participant A as GET /api/suppliers
   participant S as supplier-service
-  participant D as SQLite
+  participant D as PostgreSQL
 
   U->>P: Ketik "tepung", pilih provinsi
   P->>A: fetch ?query=tepung&province=Jawa Barat&sort=rating
@@ -259,7 +261,7 @@ sequenceDiagram
   participant F as QuoteRequestForm
   participant A as POST /api/quote-requests
   participant Q as quote-service
-  participant D as SQLite
+  participant D as PostgreSQL
 
   U->>F: Isi produk, jumlah, nama, WhatsApp
   F->>A: JSON body
@@ -279,47 +281,77 @@ sequenceDiagram
   U->>U: Buka /permintaan → tabel riwayat
 ```
 
-## 9. Struktur Folder
+## 9. Struktur Folder & Alasannya
+
+Prinsip: **folder dipisah berdasarkan lapisan (layer) dan tanggung jawab**, mengikuti alur
+`Halaman → (API) → Service → Prisma → Database`. Setiap pertanyaan "kode X ada di mana?" punya satu jawaban,
+dan aturan bisnis bisa diuji tanpa browser maupun database.
 
 ```text
 Rpl-app/
-  prisma/
-    schema.prisma               model database
-    migrations/                 riwayat migrasi SQL
-    seed.ts                     isi data contoh
-    seed-data.ts                data contoh (dulu src/data/mock-data.ts)
-  prisma.config.ts              konfigurasi Prisma CLI (lokasi skema, migrasi, seed, DATABASE_URL)
-  src/
-    app/
-      api/
-        suppliers/route.ts            GET daftar supplier
-        suppliers/[id]/route.ts       GET detail supplier
-        quote-requests/route.ts       GET & POST permintaan penawaran
-      page.tsx                  Beranda
-      suppliers/page.tsx        Direktori + pencarian (client)
-      suppliers/[id]/page.tsx   Detail supplier + form RFQ
-      compare/page.tsx          Ambil data (server)
-      compare/CompareClient.tsx Tabel perbandingan (client)
-      permintaan/page.tsx       Riwayat permintaan penawaran
-    components/
-      layout/                   Header, Footer
-      search/SearchBar.tsx
-      supplier/                 SupplierCard, ComparisonBar, QuoteRequestForm
-    server/                     hanya berjalan di server
-      db.ts                     PrismaClient
-      supplier-service.ts
-      quote-service.ts
-    lib/
-      api.ts                    fetcher untuk client component
-      constants.ts              daftar kategori & provinsi
-      utils.ts                  format Rupiah, badge stok, dll
-    types/index.ts              tipe domain & DTO API
-    generated/prisma/           Prisma Client hasil generate (tidak di-commit)
-  tests/                        acceptance test Vitest
-  docs/
-    LAPORAN-P5.md
-    evidence/                   log verifikasi API
+├── src/
+│   ├── app/                      ① ROUTING — 1 folder = 1 URL (konvensi App Router Next.js)
+│   │   ├── page.tsx              /             Beranda
+│   │   ├── suppliers/            /suppliers    Direktori + pencarian; [id]/ = detail + form RFQ
+│   │   ├── compare/              /compare      page.tsx (ambil data, server) + CompareClient.tsx (interaksi)
+│   │   ├── permintaan/           /permintaan   Riwayat & status RFQ
+│   │   ├── api/                  REST API (Route Handlers)
+│   │   │   ├── suppliers/        GET /api/suppliers, GET /api/suppliers/:id
+│   │   │   ├── quote-requests/   GET/POST /api/quote-requests, GET/PATCH /api/quote-requests/:id
+│   │   │   └── health/           GET /api/health (cek aplikasi & koneksi database)
+│   │   └── layout.tsx, error.tsx, not-found.tsx, robots.ts, sitemap.ts
+│   ├── components/               ② UI yang dipakai ulang, dikelompokkan per domain
+│   │   ├── layout/               Header, Footer
+│   │   ├── search/               SearchBar
+│   │   ├── supplier/             SupplierCard, ComparisonBar, CostEstimator, QuoteRequestForm
+│   │   └── quote/                QuoteStatusActions
+│   ├── server/                   ③ KHUSUS SERVER — satu-satunya lapisan yang menyentuh database
+│   │   ├── db.ts, pg-adapter.ts  PrismaClient + koneksi PostgreSQL
+│   │   ├── supplier-service.ts   query pencarian & detail supplier
+│   │   └── quote-service.ts      buat RFQ, validasi, ubah status
+│   ├── lib/                      ④ LOGIKA MURNI — tanpa database/React, aman di server & browser
+│   │   ├── compare.ts            aturan perbandingan (US2)
+│   │   ├── cost-estimate.ts      estimasi biaya + peringatan (US3)
+│   │   ├── quote-status.ts       mesin status RFQ (US5)
+│   │   ├── pricing.ts, limits.ts harga setelah diskon, batas angka
+│   │   ├── api.ts                fetcher REST untuk Client Component
+│   │   └── constants.ts, utils.ts, site.ts, metadata.ts
+│   ├── types/index.ts            ⑤ TIPE DOMAIN — kontrak data bersama UI, API, dan service
+│   └── generated/prisma/         Prisma Client hasil generate (tidak di-commit)
+├── prisma/                       ⑥ DATABASE — schema.prisma, migrations/, seed.ts, seed-data.ts
+├── tests/                        ⑦ TEST (Vitest)
+│   ├── acceptance/               1 file per user story US1–US5 (acceptance criteria)
+│   ├── unit/                     matriks API, aturan bisnis, format, regresi bug (issue #1–#12)
+│   └── global-setup.ts           siapkan schema database "test" sebelum test berjalan
+├── .github/workflows/ci.yml      ⑧ CI/CD — lint → typecheck → unit test → build → deploy Vercel
+├── scripts/test-summary.mjs      ringkasan hasil test di halaman GitHub Actions
+├── docs/                         laporan, bukti (evidence) pengujian, rekaman layar
+└── README.md, ARCHITECTURE.md, HowToRun.md, checklist_mvp.md, demo.mp4   dokumen deliverable
 ```
+
+### Kenapa dipisah seperti ini?
+
+| Folder | Alasan |
+| ------ | ------ |
+| `src/app/` | Diwajibkan Next.js App Router: nama folder = URL, jadi struktur folder sekaligus peta halaman. Isinya dibuat **tipis**: hanya mengambil data dan menyusun tampilan, tanpa query atau aturan bisnis. Komponen yang hanya dipakai satu halaman (mis. `CompareClient.tsx`) diletakkan di folder rutenya (*colocation*). |
+| `src/app/api/` | REST API berada di proyek yang sama: frontend & backend satu repo, satu bahasa (TypeScript), satu kali deploy. Route handler hanya membaca input → memanggil service → mengembalikan JSON + status HTTP. |
+| `src/components/` | Komponen yang dipakai lebih dari satu tempat. Dikelompokkan **per domain** (supplier, quote, search), bukan per jenis (button, card), supaya mudah dicari berdasarkan fitur. |
+| `src/server/` | Mengisolasi kode yang memegang koneksi database dan rahasia (`DATABASE_URL`). Server Component dan Route Handler **sama-sama** memanggil service ini, jadi query tidak ditulis dua kali. Saat pindah SQLite → PostgreSQL, hanya folder ini (dan `prisma/`) yang berubah. |
+| `src/lib/` | Aturan bisnis ditulis sebagai fungsi murni (input → output), sehingga (1) bisa dipakai di browser untuk umpan balik instan *dan* di server untuk validasi final, (2) mudah di-unit-test tanpa database. |
+| `src/types/` | Satu sumber kebenaran bentuk data. Frontend tidak mengimpor tipe Prisma; service yang memetakan baris database ke tipe domain, jadi perubahan tabel tidak langsung merusak UI. |
+| `prisma/` | Konvensi Prisma: skema, riwayat migrasi (bisa di-review & diterapkan ulang di server mana pun), dan data contoh. |
+| `tests/acceptance/` vs `tests/unit/` | `acceptance/` membuktikan tiap user story memenuhi acceptance criteria; `unit/` menguji kasus detail dan regresi bug. Memudahkan menjawab "user story X diuji di mana?". |
+| `.github/workflows/` | Pipeline otomatis: kode hanya bisa live jika semua test hijau (lihat bagian 13). |
+
+Aturan ketergantungan (arah panah satu arah, tidak boleh terbalik):
+
+```text
+app/ (page & api) ──▶ components/ ──▶ lib/ ──▶ types/
+       │                               ▲
+       └──────────▶ server/ ───────────┘──▶ Prisma ──▶ PostgreSQL
+```
+
+`lib/` dan `types/` tidak mengimpor `server/` maupun React; `components/` tidak mengimpor `server/`.
 
 ## 10. Kebutuhan UI
 
@@ -334,11 +366,29 @@ Rpl-app/
 * Belum ada login (UMKM/supplier/admin); halaman `/permintaan` menampilkan semua permintaan.
 * Belum ada login, jadi aksi supplier (balas) dan UMKM (terima/tolak/batal) ada di halaman yang sama.
 * Data supplier dan produk hanya bisa diubah lewat seed / Prisma Studio.
-* SQLite cocok untuk satu server; untuk produksi multi-instance gunakan PostgreSQL.
+* Data supplier dan produk masih berasal dari seed; belum ada panel admin.
 
 ## 12. Rencana Pengembangan
 
 * Autentikasi UMKM dan supplier; supplier mengelola produk, stok, dan membalas RFQ (status `DIBALAS`, `DITUTUP`).
 * CRUD supplier/produk untuk admin.
 * Ulasan dan rating dari UMKM.
-* Pindah ke PostgreSQL dan deploy.
+
+## 13. Branch, CI/CD & Hosting
+
+| Branch | Peran | URL live |
+| ------ | ----- | -------- |
+| `v1.0` | Production (versi stabil) | <https://supplierhub-delta.vercel.app> |
+| `v1.0_dev` | Perbaikan bug & testing sebelum masuk `v1.0` | <https://supplierhub-v1-0-dev.vercel.app> |
+| `v1.1` | Pengembangan fitur versi berikutnya | <https://supplierhub-v1-1.vercel.app> |
+
+Setiap `push` ke branch di atas menjalankan `.github/workflows/ci.yml`:
+
+```text
+push ─▶ lint ─▶ typecheck ─▶ unit test (PostgreSQL) ─▶ build ─┬─ semua hijau ─▶ deploy Vercel ─▶ LIVE
+                                                              └─ ada yang merah ─▶ deploy DILEWATI
+```
+
+Jika satu test gagal, job `deploy` tidak dijalankan: versi live sebelumnya tetap berjalan dan bug tidak sampai
+ke pengguna. Auto-deploy bawaan Vercel dimatikan (`vercel.json` → `git.deploymentEnabled: false`) supaya
+satu-satunya jalan ke server live adalah lewat pipeline yang sudah lulus test.
